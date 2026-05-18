@@ -8,7 +8,8 @@
     "scheme": "regalolager",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.heimir-sv.regalolager"
     },
     "android": {
       "adaptiveIcon": {
@@ -17,7 +18,12 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.heimir_sv.regalolager"
     },
     "web": {
       "output": "static",
@@ -34,7 +40,11 @@
             "imageWidth": 76
           }
         }
-      ]
+      ],
+      "expo-secure-store",
+      "expo-camera",
+      "expo-font",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
