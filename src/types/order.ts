@@ -3,11 +3,11 @@ export interface OrderLine {
   order: number;
   item_code: string;
   description: string;
-  quantity: string;
+  quantity: number;
   unit: string;
-  unit_price: string;
-  discount_pct: string;
-  total: string;
+  unit_price: number;
+  discount_pct: number;
+  total: number;
 }
 
 export interface Order {
@@ -17,10 +17,10 @@ export interface Order {
   address: string;
   zip_code: string;
   date: string;
-  net_amount: string;
-  tax: string;
-  total: string;
-  discount: string;
+  net_amount: number;
+  tax: number;
+  total: number;
+  discount: number;
   payment_mode: string;
   lines?: OrderLine[];
 }

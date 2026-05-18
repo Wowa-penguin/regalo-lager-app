@@ -1,10 +1,9 @@
 import { fetchOrders } from "@/api/fetchOrders";
-import BarcodeScanner from "@/components/BarcodeScanner";
 import useStore, { clearSession } from "@/store/useStore";
 import { Order } from "@/types/order";
 import { setAuthToken } from "@/utils/auth";
 import { Redirect, router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
@@ -13,6 +12,7 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 
@@ -24,7 +24,7 @@ export default function Index() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
-  const [scannerVisible, setScannerVisible] = useState(false);
+  const [query, setQuery] = useState("");
 
   if (!user.username) return <Redirect href="/login" />;
 
@@ -58,6 +58,19 @@ export default function Index() {
     loadOrders(true);
   };
 
+  const filteredOrders = useMemo(() => {
+    const sorted = [...orders].sort((a, b) =>
+      a.customer_name.localeCompare(b.customer_name, undefined, { sensitivity: "base" })
+    );
+    const q = query.trim().toLowerCase();
+    if (!q) return sorted;
+    return sorted.filter(
+      (o) =>
+        o.customer_name.toLowerCase().includes(q) ||
+        String(o.invoice_number).includes(q)
+    );
+  }, [orders, query]);
+
   const renderOrder = ({ item }: { item: Order }) => (
     <Pressable
       style={styles.card}
@@ -67,11 +80,13 @@ export default function Index() {
         <Text style={styles.customerName} numberOfLines={1}>
           {item.customer_name}
         </Text>
-        <Text style={styles.invoiceNumber}>#{item.invoice_number}</Text>
+        <View style={styles.cardRight}>
+          <Text style={styles.invoiceNumber}>#{item.invoice_number}</Text>
+          <Text style={styles.cardTotal}>{item.total.toFixed(2)}</Text>
+        </View>
       </View>
       <View style={styles.cardBottom}>
         <Text style={styles.cardMeta}>{item.date}</Text>
-        <Text style={styles.cardTotal}>{item.total}</Text>
       </View>
     </Pressable>
   );
@@ -81,14 +96,22 @@ export default function Index() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Orders</Text>
-        <View style={styles.headerActions}>
-          <Pressable style={styles.scanButton} onPress={() => setScannerVisible(true)}>
-            <Text style={styles.scanButtonText}>Scan</Text>
-          </Pressable>
-          <Pressable onPress={handleLogout}>
-            <Text style={styles.logoutText}>Log out</Text>
-          </Pressable>
-        </View>
+        <Pressable onPress={handleLogout}>
+          <Text style={styles.logoutText}>Log out</Text>
+        </Pressable>
+      </View>
+
+      {/* Search */}
+      <View style={styles.searchRow}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by name or order ID…"
+          placeholderTextColor="#bbb"
+          value={query}
+          onChangeText={setQuery}
+          autoCorrect={false}
+          clearButtonMode="while-editing"
+        />
       </View>
 
       {/* Content */}
@@ -105,29 +128,24 @@ export default function Index() {
         </View>
       ) : (
         <FlatList
-          data={orders}
+          data={filteredOrders}
           keyExtractor={(item) => String(item.invoice_number)}
           renderItem={renderOrder}
           contentContainerStyle={styles.list}
+          keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#208AEF" />
           }
           ListEmptyComponent={
             <View style={styles.centered}>
-              <Text style={styles.emptyText}>No orders found.</Text>
+              <Text style={styles.emptyText}>
+                {query ? "No orders match your search." : "No orders found."}
+              </Text>
             </View>
           }
         />
       )}
 
-      <BarcodeScanner
-        visible={scannerVisible}
-        onClose={() => setScannerVisible(false)}
-        onScanned={(data) => {
-          setScannerVisible(false);
-          console.log("Scanned:", data);
-        }}
-      />
     </SafeAreaView>
   );
 }
@@ -151,25 +169,25 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#1a1a1a",
   },
-  headerActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  scanButton: {
-    backgroundColor: "#208AEF",
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 8,
-  },
-  scanButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
-  },
   logoutText: {
     color: "#888",
     fontSize: 14,
+  },
+  searchRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2DAD3",
+  },
+  searchInput: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#E2DAD3",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    fontSize: 15,
+    color: "#1a1a1a",
   },
   centered: {
     flex: 1,
@@ -213,7 +231,7 @@ const styles = StyleSheet.create({
   },
   cardTop: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
   },
   customerName: {
@@ -237,8 +255,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#aaa",
   },
+  cardRight: {
+    alignItems: "flex-end",
+    gap: 2,
+  },
   cardTotal: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: "600",
     color: "#208AEF",
   },

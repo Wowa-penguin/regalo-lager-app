@@ -1,11 +1,12 @@
 import { fetchOrder } from "@/api/fetchOrder";
 import { createBarcode } from "@/api/createBarcode";
 import BarcodeScanner from "@/components/BarcodeScanner";
+import useStore from "@/store/useStore";
 import useBarcodeStore from "@/store/useBarcodeStore";
 import { Order, OrderLine } from "@/types/order";
 import * as WebBrowser from "expo-web-browser";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -17,19 +18,33 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-type PickedCounts = Record<string, number>;
+const EMPTY_COUNTS: Record<string, number> = {};
 
 export default function OrderDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const invoiceNumber = Number(id);
+
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [pickedCounts, setPickedCounts] = useState<PickedCounts>({});
   const [scannerVisible, setScannerVisible] = useState(false);
   const [scanFeedback, setScanFeedback] = useState("");
+  const processingRef = useRef(false);
 
   const [pendingBarcode, setPendingBarcode] = useState<string | null>(null);
   const [assigning, setAssigning] = useState(false);
+  const [assignError, setAssignError] = useState("");
+
+  const [overpackWarning, setOverpackWarning] = useState<{
+    name: string;
+    itemCode: string;
+    picked: number;
+    quantity: number;
+    unit: string;
+  } | null>(null);
+
+  const pickedCounts = useStore((s) => s.pickedOrders[invoiceNumber] ?? EMPTY_COUNTS);
+  const setItemPicked = useStore((s) => s.setItemPicked);
 
   const findProductId = useBarcodeStore((s) => s.findProductId);
   const addBarcode = useBarcodeStore((s) => s.addBarcode);
@@ -44,60 +59,78 @@ export default function OrderDetail() {
   }, [id]);
 
   const pickItem = (line: OrderLine) => {
-    const needed = Number(line.quantity);
     const current = pickedCounts[line.item_code] ?? 0;
-    if (current >= needed) {
-      setScanFeedback(`✓ ${line.item_code} already complete`);
+    if (current >= line.quantity) {
+      setOverpackWarning({
+        name: line.description || line.item_code,
+        itemCode: line.item_code,
+        picked: current,
+        quantity: line.quantity,
+        unit: line.unit,
+      });
       return;
     }
     const next = current + 1;
-    setPickedCounts((prev) => ({ ...prev, [line.item_code]: next }));
+    setItemPicked(invoiceNumber, line.item_code, next);
     setScanFeedback(`✓ ${line.item_code}   ${next} / ${line.quantity} ${line.unit}`);
   };
 
   const handleScanned = (data: string) => {
-    if (!order?.lines) return;
+    if (processingRef.current) return;
+    processingRef.current = true;
 
-    // Resolve barcode → product_id (mapped or raw barcode as fallback)
+    if (!order?.lines) {
+      processingRef.current = false;
+      return;
+    }
+
     const productId = findProductId(data) ?? data;
     const line = order.lines.find((l) => l.item_code === productId);
 
     if (!line) {
-      // Unknown — close scanner and ask user to assign
       setScannerVisible(false);
       setPendingBarcode(data);
       return;
     }
 
+    setScannerVisible(false);
     pickItem(line);
   };
 
   const handleAssign = async (line: OrderLine) => {
     if (!pendingBarcode) return;
     setAssigning(true);
+    setAssignError("");
     try {
       const mapping = await createBarcode(pendingBarcode, line.item_code);
       addBarcode(mapping);
       pickItem(line);
-    } catch {
-      // silently ignore — user can try again
-    } finally {
       setPendingBarcode(null);
+    } catch (e: unknown) {
+      setAssignError(e instanceof Error ? e.message : "Failed to save — check connection");
+    } finally {
       setAssigning(false);
     }
   };
 
-  const lines = order?.lines ?? [];
-  const completedLines = lines.filter((l) => {
-    const picked = pickedCounts[l.item_code] ?? 0;
-    return picked >= Number(l.quantity);
-  }).length;
+  const lines = useMemo(
+    () =>
+      [...(order?.lines ?? [])].sort((a, b) => {
+        const byCode = a.item_code.localeCompare(b.item_code, undefined, { numeric: true, sensitivity: "base" });
+        if (byCode !== 0) return byCode;
+        return (a.description ?? "").localeCompare(b.description ?? "", undefined, { sensitivity: "base" });
+      }),
+    [order?.lines]
+  );
+
+  const completedLines = lines.filter(
+    (l) => (pickedCounts[l.item_code] ?? 0) >= l.quantity
+  ).length;
   const allDone = lines.length > 0 && completedLines === lines.length;
 
   const renderLine = ({ item }: { item: OrderLine }) => {
-    const needed = Number(item.quantity);
     const picked = pickedCounts[item.item_code] ?? 0;
-    const isComplete = picked >= needed;
+    const isComplete = picked >= item.quantity;
     const isPartial = picked > 0 && !isComplete;
 
     return (
@@ -181,7 +214,7 @@ export default function OrderDetail() {
         <Text style={styles.headerTitle} numberOfLines={1}>
           {order?.customer_name ?? `Order #${id}`}
         </Text>
-        <Pressable style={styles.scanButton} onPress={() => setScannerVisible(true)}>
+        <Pressable style={styles.scanButton} onPress={() => { processingRef.current = false; setScannerVisible(true); }}>
           <Text style={styles.scanButtonText}>Scan</Text>
         </Pressable>
       </View>
@@ -228,13 +261,14 @@ export default function OrderDetail() {
         visible={pendingBarcode !== null}
         animationType="slide"
         transparent
-        onRequestClose={() => setPendingBarcode(null)}
+        onRequestClose={() => { setPendingBarcode(null); setAssignError(""); }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <Text style={styles.modalTitle}>Unknown barcode</Text>
             <Text style={styles.modalBarcode}>{pendingBarcode}</Text>
             <Text style={styles.modalSubtitle}>Which product does this represent?</Text>
+        {!!assignError && <Text style={styles.assignError}>{assignError}</Text>}
 
             <FlatList
               data={lines}
@@ -248,7 +282,7 @@ export default function OrderDetail() {
 
             <Pressable
               style={styles.cancelButton}
-              onPress={() => setPendingBarcode(null)}
+              onPress={() => { setPendingBarcode(null); setAssignError(""); }}
               disabled={assigning}
             >
               {assigning ? (
@@ -256,6 +290,41 @@ export default function OrderDetail() {
               ) : (
                 <Text style={styles.cancelText}>Cancel</Text>
               )}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Overpack warning */}
+      <Modal
+        visible={overpackWarning !== null}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setOverpackWarning(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.warnSheet}>
+            <Text style={styles.warnIcon}>⚠️</Text>
+            <Text style={styles.warnTitle}>Already fully picked</Text>
+            {overpackWarning && (
+              <>
+                <Text style={styles.warnProduct}>
+                  {overpackWarning.name}
+                </Text>
+                <Text style={styles.warnBody}>
+                  You've already scanned{" "}
+                  <Text style={styles.warnBold}>
+                    {overpackWarning.picked} of {overpackWarning.quantity} {overpackWarning.unit}
+                  </Text>
+                  {" "}for this item.{"\n"}Don't add more to the order.
+                </Text>
+              </>
+            )}
+            <Pressable
+              style={styles.warnButton}
+              onPress={() => setOverpackWarning(null)}
+            >
+              <Text style={styles.warnButtonText}>Got it</Text>
             </Pressable>
           </View>
         </View>
@@ -466,6 +535,12 @@ const styles = StyleSheet.create({
   assignList: {
     flexGrow: 0,
   },
+  assignError: {
+    color: "#C0392B",
+    fontSize: 13,
+    textAlign: "center",
+    marginBottom: 4,
+  },
   assignCard: {
     backgroundColor: "#F7F5F2",
     borderRadius: 10,
@@ -495,5 +570,52 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#888",
     fontWeight: "500",
+  },
+  warnSheet: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 28,
+    marginHorizontal: 32,
+    alignItems: "center",
+    gap: 10,
+  },
+  warnIcon: {
+    fontSize: 40,
+  },
+  warnTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1a1a1a",
+    textAlign: "center",
+  },
+  warnProduct: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#555",
+    textAlign: "center",
+  },
+  warnBody: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    lineHeight: 21,
+  },
+  warnBold: {
+    fontWeight: "700",
+    color: "#C0392B",
+  },
+  warnButton: {
+    marginTop: 8,
+    backgroundColor: "#C0392B",
+    borderRadius: 10,
+    paddingHorizontal: 36,
+    paddingVertical: 13,
+    width: "100%",
+    alignItems: "center",
+  },
+  warnButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
   },
 });

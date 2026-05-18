@@ -1,10 +1,12 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Animated, Dimensions, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
-const SCAN_SIZE = SCREEN_WIDTH * 0.7;
+const SCAN_SIZE = SCREEN_WIDTH * 0.75;
 const DEBOUNCE_MS = 700;
+const ZOOM_STEP = 0.1;
+const MAX_ZOOM = 0.5;
 
 interface Props {
   visible: boolean;
@@ -15,6 +17,8 @@ interface Props {
 
 export default function BarcodeScanner({ visible, onClose, onScanned, feedback }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
+  const [torch, setTorch] = useState(false);
+  const [zoom, setZoom] = useState(0);
   const scanLineY = useRef(new Animated.Value(0)).current;
   const lastScanRef = useRef<{ code: string; time: number } | null>(null);
 
@@ -22,6 +26,8 @@ export default function BarcodeScanner({ visible, onClose, onScanned, feedback }
     if (!visible) {
       scanLineY.setValue(0);
       lastScanRef.current = null;
+      setTorch(false);
+      setZoom(0);
       return;
     }
 
@@ -51,6 +57,9 @@ export default function BarcodeScanner({ visible, onClose, onScanned, feedback }
     onScanned(data);
   };
 
+  const zoomIn = () => setZoom((z) => Math.min(+(z + ZOOM_STEP).toFixed(1), MAX_ZOOM));
+  const zoomOut = () => setZoom((z) => Math.max(+(z - ZOOM_STEP).toFixed(1), 0));
+
   const renderContent = () => {
     if (!permission) return <View style={styles.flex} />;
 
@@ -71,6 +80,8 @@ export default function BarcodeScanner({ visible, onClose, onScanned, feedback }
           style={StyleSheet.absoluteFill}
           facing="back"
           autofocus="on"
+          zoom={zoom}
+          enableTorch={torch}
           barcodeScannerSettings={{
             barcodeTypes: ["ean13", "ean8", "code128", "code39", "qr"],
           }}
@@ -99,6 +110,46 @@ export default function BarcodeScanner({ visible, onClose, onScanned, feedback }
           ) : (
             <Text style={styles.hint}>Align barcode within the frame</Text>
           )}
+
+          <View style={styles.controls}>
+            {/* Torch */}
+            <Pressable
+              style={[styles.controlButton, torch && styles.controlButtonActive]}
+              onPress={() => setTorch((t) => !t)}
+            >
+              <Text style={styles.controlIcon}>⚡</Text>
+              <Text style={[styles.controlLabel, torch && styles.controlLabelActive]}>
+                {torch ? "Light on" : "Light"}
+              </Text>
+            </Pressable>
+
+            {/* Zoom out */}
+            <Pressable
+              style={[styles.controlButton, zoom === 0 && styles.controlButtonDisabled]}
+              onPress={zoomOut}
+              disabled={zoom === 0}
+            >
+              <Text style={styles.controlIcon}>−</Text>
+              <Text style={styles.controlLabel}>Zoom out</Text>
+            </Pressable>
+
+            {/* Zoom level */}
+            <View style={styles.zoomBadge}>
+              <Text style={styles.zoomText}>
+                {zoom === 0 ? "1×" : `${(1 + zoom * 4).toFixed(1)}×`}
+              </Text>
+            </View>
+
+            {/* Zoom in */}
+            <Pressable
+              style={[styles.controlButton, zoom >= MAX_ZOOM && styles.controlButtonDisabled]}
+              onPress={zoomIn}
+              disabled={zoom >= MAX_ZOOM}
+            >
+              <Text style={styles.controlIcon}>+</Text>
+              <Text style={styles.controlLabel}>Zoom in</Text>
+            </Pressable>
+          </View>
         </View>
       </>
     );
@@ -117,7 +168,7 @@ export default function BarcodeScanner({ visible, onClose, onScanned, feedback }
 }
 
 const OVERLAY_COLOR = "rgba(0,0,0,0.6)";
-const CORNER_SIZE = 22;
+const CORNER_SIZE = 24;
 const CORNER_THICKNESS = 3;
 const CORNER_COLOR = "#fff";
 
@@ -168,6 +219,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
+    gap: 20,
   },
   hint: {
     color: "rgba(255,255,255,0.6)",
@@ -177,6 +229,49 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 17,
     fontWeight: "600",
+    textAlign: "center",
+  },
+  controls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  controlButton: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 4,
+  },
+  controlButtonActive: {
+    backgroundColor: "#208AEF",
+  },
+  controlButtonDisabled: {
+    opacity: 0.35,
+  },
+  controlIcon: {
+    fontSize: 18,
+    color: "#fff",
+  },
+  controlLabel: {
+    fontSize: 10,
+    color: "rgba(255,255,255,0.7)",
+  },
+  controlLabelActive: {
+    color: "#fff",
+  },
+  zoomBadge: {
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  zoomText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+    minWidth: 32,
     textAlign: "center",
   },
   scanWindow: {

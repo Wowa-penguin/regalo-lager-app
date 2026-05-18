@@ -11,6 +11,8 @@ export const createBarcode = async (
     headers: getAuthHeaders(),
     body: JSON.stringify({ barcode, product_id }),
   });
-  if (!res.ok) throw new Error("Failed to save barcode mapping");
-  return res.json();
+
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? `Server error ${res.status}`);
+  return json as BarcodeMapping;
 };
