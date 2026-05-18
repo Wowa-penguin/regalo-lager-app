@@ -26,23 +26,25 @@ const emptyUser: User = {
   username: "",
 };
 
-// pickedOrders[invoiceNumber][itemCode] = count picked so far
-type PickedOrders = Record<number, Record<string, number>>;
+type OrderCounts = Record<number, Record<string, number>>;
 
 interface StoreActions {
   setUser: (user: User) => void;
   setItemPicked: (invoiceNumber: number, itemCode: string, count: number) => void;
+  setItemMissing: (invoiceNumber: number, itemCode: string, count: number) => void;
   logout: () => void;
 }
 
 interface StoreState extends StoreActions {
   user: User;
-  pickedOrders: PickedOrders;
+  pickedOrders: OrderCounts;
+  missingOrders: OrderCounts;
 }
 
 const useStore = create<StoreState>((set) => ({
   user: emptyUser,
   pickedOrders: {},
+  missingOrders: {},
 
   setUser: (user: User) => set({ user }),
 
@@ -50,10 +52,15 @@ const useStore = create<StoreState>((set) => ({
     set((state) => ({
       pickedOrders: {
         ...state.pickedOrders,
-        [invoiceNumber]: {
-          ...state.pickedOrders[invoiceNumber],
-          [itemCode]: count,
-        },
+        [invoiceNumber]: { ...state.pickedOrders[invoiceNumber], [itemCode]: count },
+      },
+    })),
+
+  setItemMissing: (invoiceNumber, itemCode, count) =>
+    set((state) => ({
+      missingOrders: {
+        ...state.missingOrders,
+        [invoiceNumber]: { ...state.missingOrders[invoiceNumber], [itemCode]: count },
       },
     })),
 
@@ -61,6 +68,7 @@ const useStore = create<StoreState>((set) => ({
     set({
       user: emptyUser,
       pickedOrders: {},
+      missingOrders: {},
     }),
 }));
 

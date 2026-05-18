@@ -19,6 +19,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const EMPTY_COUNTS: Record<string, number> = {};
+const EMPTY_MISSING: Record<string, number> = {};
 
 export default function OrderDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -35,6 +36,8 @@ export default function OrderDetail() {
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState("");
 
+  const [manualEntry, setManualEntry] = useState<{ line: OrderLine; count: number } | null>(null);
+
   const [overpackWarning, setOverpackWarning] = useState<{
     name: string;
     itemCode: string;
@@ -44,7 +47,9 @@ export default function OrderDetail() {
   } | null>(null);
 
   const pickedCounts = useStore((s) => s.pickedOrders[invoiceNumber] ?? EMPTY_COUNTS);
+  const missingCounts = useStore((s) => s.missingOrders[invoiceNumber] ?? EMPTY_MISSING);
   const setItemPicked = useStore((s) => s.setItemPicked);
+  const setItemMissing = useStore((s) => s.setItemMissing);
 
   const findProductId = useBarcodeStore((s) => s.findProductId);
   const addBarcode = useBarcodeStore((s) => s.addBarcode);
@@ -142,7 +147,9 @@ export default function OrderDetail() {
         ]}
       >
         <View style={styles.lineLeft}>
-          <View
+          <Pressable
+            onPress={() => setManualEntry({ line: item, count: pickedCounts[item.item_code] ?? 0 })}
+            hitSlop={6}
             style={[
               styles.statusRing,
               isComplete && styles.statusRingComplete,
@@ -156,13 +163,12 @@ export default function OrderDetail() {
                 isPartial && styles.statusIconPartial,
               ]}
             >
-              {isComplete ? "✓" : isPartial ? "…" : "○"}
+              {isComplete ? "✓" : isPartial ? "…" : "+"}
             </Text>
-          </View>
+          </Pressable>
           <View style={styles.lineInfo}>
             <Text
               style={[styles.description, isComplete && styles.descriptionComplete]}
-              numberOfLines={1}
             >
               {item.description || item.item_code}
             </Text>
@@ -179,6 +185,13 @@ export default function OrderDetail() {
           >
             {picked}/{item.quantity} {item.unit}
           </Text>
+          {(missingCounts[item.item_code] ?? 0) > 0 && (
+            <View style={styles.missingBadge}>
+              <Text style={styles.missingBadgeText}>
+                {missingCounts[item.item_code]} missing
+              </Text>
+            </View>
+          )}
           <Pressable
             onPress={() =>
               WebBrowser.openBrowserAsync(
@@ -290,6 +303,83 @@ export default function OrderDetail() {
               ) : (
                 <Text style={styles.cancelText}>Cancel</Text>
               )}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Manual entry */}
+      <Modal
+        visible={manualEntry !== null}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setManualEntry(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>
+              {manualEntry?.line.description || manualEntry?.line.item_code}
+            </Text>
+            <Text style={styles.modalBarcode}>{manualEntry?.line.item_code}</Text>
+            <Text style={styles.modalSubtitle}>
+              Required: {manualEntry?.line.quantity} {manualEntry?.line.unit}
+            </Text>
+
+            <View style={styles.counterRow}>
+              <Pressable
+                style={[styles.counterBtn, (manualEntry?.count ?? 0) <= 0 && styles.counterBtnDisabled]}
+                onPress={() => setManualEntry((e) => e && { ...e, count: Math.max(0, e.count - 1) })}
+                disabled={(manualEntry?.count ?? 0) <= 0}
+              >
+                <Text style={styles.counterBtnText}>−</Text>
+              </Pressable>
+
+              <Text style={styles.counterValue}>{manualEntry?.count ?? 0}</Text>
+
+              <Pressable
+                style={[
+                  styles.counterBtn,
+                  (manualEntry?.count ?? 0) >= (manualEntry?.line.quantity ?? 0) && styles.counterBtnDisabled,
+                ]}
+                onPress={() =>
+                  setManualEntry((e) =>
+                    e && { ...e, count: Math.min(e.line.quantity, e.count + 1) }
+                  )
+                }
+                disabled={(manualEntry?.count ?? 0) >= (manualEntry?.line.quantity ?? 0)}
+              >
+                <Text style={styles.counterBtnText}>+</Text>
+              </Pressable>
+            </View>
+
+            <Pressable
+              style={styles.doneButton}
+              onPress={() => {
+                if (manualEntry) {
+                  setItemPicked(invoiceNumber, manualEntry.line.item_code, manualEntry.count);
+                }
+                setManualEntry(null);
+              }}
+            >
+              <Text style={styles.doneButtonText}>Done</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.missingButton}
+              onPress={() => {
+                if (manualEntry) {
+                  const missing = manualEntry.line.quantity - manualEntry.count;
+                  setItemPicked(invoiceNumber, manualEntry.line.item_code, manualEntry.count);
+                  setItemMissing(invoiceNumber, manualEntry.line.item_code, missing > 0 ? missing : 0);
+                }
+                setManualEntry(null);
+              }}
+            >
+              <Text style={styles.missingButtonText}>Rest does not exist</Text>
+            </Pressable>
+
+            <Pressable style={styles.cancelButton} onPress={() => setManualEntry(null)}>
+              <Text style={styles.cancelText}>Cancel</Text>
             </Pressable>
           </View>
         </View>
@@ -570,6 +660,75 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#888",
     fontWeight: "500",
+  },
+  counterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 28,
+    paddingVertical: 8,
+  },
+  counterBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "#208AEF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  counterBtnDisabled: {
+    backgroundColor: "#D0D0D0",
+  },
+  counterBtnText: {
+    color: "#fff",
+    fontSize: 26,
+    fontWeight: "600",
+    lineHeight: 30,
+  },
+  counterValue: {
+    fontSize: 48,
+    fontWeight: "700",
+    color: "#1a1a1a",
+    minWidth: 64,
+    textAlign: "center",
+  },
+  doneButton: {
+    backgroundColor: "#208AEF",
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: "center",
+    width: "100%",
+    marginTop: 4,
+  },
+  doneButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  missingButton: {
+    borderWidth: 1.5,
+    borderColor: "#C0392B",
+    borderRadius: 10,
+    paddingVertical: 13,
+    alignItems: "center",
+    width: "100%",
+  },
+  missingButtonText: {
+    color: "#C0392B",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  missingBadge: {
+    backgroundColor: "#FDECEA",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    alignSelf: "flex-end",
+  },
+  missingBadgeText: {
+    color: "#C0392B",
+    fontSize: 11,
+    fontWeight: "600",
   },
   warnSheet: {
     backgroundColor: "#fff",

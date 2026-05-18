@@ -77,7 +77,7 @@ export default function Index() {
       onPress={() => router.push({ pathname: "/order/[id]", params: { id: item.invoice_number } })}
     >
       <View style={styles.cardTop}>
-        <Text style={styles.customerName} numberOfLines={1}>
+        <Text style={styles.customerName}>
           {item.customer_name}
         </Text>
         <View style={styles.cardRight}>
