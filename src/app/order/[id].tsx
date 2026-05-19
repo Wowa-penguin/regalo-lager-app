@@ -1,9 +1,11 @@
 import { fetchOrder } from "@/api/fetchOrder";
+import { fetchProducts } from "@/api/fetchProducts";
 import { createBarcode } from "@/api/createBarcode";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import useStore from "@/store/useStore";
 import useBarcodeStore from "@/store/useBarcodeStore";
 import { Order, OrderLine } from "@/types/order";
+import { Product } from "@/types/product";
 import * as WebBrowser from "expo-web-browser";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -28,6 +30,7 @@ export default function OrderDetail() {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [products, setProducts] = useState<Product[]>([]);
   const [scannerVisible, setScannerVisible] = useState(false);
   const [scanFeedback, setScanFeedback] = useState("");
   const processingRef = useRef(false);
@@ -63,6 +66,10 @@ export default function OrderDetail() {
       )
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    fetchProducts().then(setProducts).catch(() => {});
+  }, []);
 
   const pickItem = (line: OrderLine) => {
     const current = pickedCounts[line.item_code] ?? 0;
@@ -103,14 +110,15 @@ export default function OrderDetail() {
     pickItem(line);
   };
 
-  const handleAssign = async (line: OrderLine) => {
-    if (!pendingBarcode) return;
+  const handleAssign = async (product: Product) => {
+    if (!pendingBarcode || !order?.lines) return;
     setAssigning(true);
     setAssignError("");
     try {
-      const mapping = await createBarcode(pendingBarcode, line.item_code);
+      const mapping = await createBarcode(pendingBarcode, product.product_id);
       addBarcode(mapping);
-      pickItem(line);
+      const line = order.lines.find((l) => l.item_code === product.product_id);
+      if (line) pickItem(line);
       setPendingBarcode(null);
     } catch (e: unknown) {
       setAssignError(e instanceof Error ? e.message : "Failed to save — check connection");
@@ -134,11 +142,19 @@ export default function OrderDetail() {
     [barcodes]
   );
 
-  const unscannedLines = useMemo(
-    () => lines.filter(
-      (l) => (pickedCounts[l.item_code] ?? 0) === 0 && !mappedProductIds.has(l.item_code)
+  const orderItemCodes = useMemo(
+    () => new Set(lines.map((l) => l.item_code)),
+    [lines]
+  );
+
+  const assignableProducts = useMemo(
+    () => products.filter(
+      (p) =>
+        orderItemCodes.has(p.product_id) &&
+        (pickedCounts[p.product_id] ?? 0) === 0 &&
+        !mappedProductIds.has(p.product_id)
     ),
-    [lines, pickedCounts, mappedProductIds]
+    [products, orderItemCodes, pickedCounts, mappedProductIds]
   );
 
   const completedLines = lines.filter(
@@ -220,14 +236,14 @@ export default function OrderDetail() {
     );
   };
 
-  const renderAssignItem = ({ item }: { item: OrderLine }) => (
+  const renderAssignItem = ({ item }: { item: Product }) => (
     <Pressable
       style={styles.assignCard}
       onPress={() => handleAssign(item)}
       disabled={assigning}
     >
-      <Text style={styles.assignDescription}>{item.description || item.item_code}</Text>
-      <Text style={styles.assignItemCode}>{item.item_code}</Text>
+      <Text style={styles.assignDescription}>{item.product_id}</Text>
+      <Text style={styles.assignItemCode}>{item.category}</Text>
     </Pressable>
   );
 
@@ -297,10 +313,8 @@ export default function OrderDetail() {
         {!!assignError && <Text style={styles.assignError}>{assignError}</Text>}
 
             <FlatList
-              data={unscannedLines}
-              keyExtractor={(item, index) =>
-                item.id != null ? String(item.id) : `${item.item_code}-${index}`
-              }
+              data={assignableProducts}
+              keyExtractor={(item) => item.product_id}
               renderItem={renderAssignItem}
               style={styles.assignList}
               contentContainerStyle={{ gap: 8 }}
