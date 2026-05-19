@@ -53,6 +53,7 @@ export default function OrderDetail() {
 
   const findProductId = useBarcodeStore((s) => s.findProductId);
   const addBarcode = useBarcodeStore((s) => s.addBarcode);
+  const barcodes = useBarcodeStore((s) => s.barcodes);
 
   useEffect(() => {
     fetchOrder(Number(id))
@@ -126,6 +127,18 @@ export default function OrderDetail() {
         return (a.description ?? "").localeCompare(b.description ?? "", undefined, { sensitivity: "base" });
       }),
     [order?.lines]
+  );
+
+  const mappedProductIds = useMemo(
+    () => new Set(barcodes.map((b) => b.product_id)),
+    [barcodes]
+  );
+
+  const unscannedLines = useMemo(
+    () => lines.filter(
+      (l) => (pickedCounts[l.item_code] ?? 0) === 0 && !mappedProductIds.has(l.item_code)
+    ),
+    [lines, pickedCounts, mappedProductIds]
   );
 
   const completedLines = lines.filter(
@@ -284,13 +297,16 @@ export default function OrderDetail() {
         {!!assignError && <Text style={styles.assignError}>{assignError}</Text>}
 
             <FlatList
-              data={lines}
+              data={unscannedLines}
               keyExtractor={(item, index) =>
                 item.id != null ? String(item.id) : `${item.item_code}-${index}`
               }
               renderItem={renderAssignItem}
               style={styles.assignList}
               contentContainerStyle={{ gap: 8 }}
+              ListEmptyComponent={
+                <Text style={styles.assignEmptyText}>All products have already been scanned.</Text>
+              }
             />
 
             <Pressable
@@ -624,6 +640,12 @@ const styles = StyleSheet.create({
   },
   assignList: {
     flexGrow: 0,
+  },
+  assignEmptyText: {
+    fontSize: 14,
+    color: "#aaa",
+    textAlign: "center",
+    paddingVertical: 16,
   },
   assignError: {
     color: "#C0392B",
