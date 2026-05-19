@@ -32,6 +32,7 @@ interface StoreActions {
   setUser: (user: User) => void;
   setItemPicked: (invoiceNumber: number, itemCode: string, count: number) => void;
   setItemMissing: (invoiceNumber: number, itemCode: string, count: number) => void;
+  clearOrderProgress: () => void;
   logout: () => void;
 }
 
@@ -63,6 +64,8 @@ const useStore = create<StoreState>((set) => ({
         [invoiceNumber]: { ...state.missingOrders[invoiceNumber], [itemCode]: count },
       },
     })),
+
+  clearOrderProgress: () => set({ pickedOrders: {}, missingOrders: {} }),
 
   logout: () =>
     set({

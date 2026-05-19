@@ -1,3 +1,4 @@
+import { clearOrders } from "@/api/clearOrders";
 import { fetchOrders } from "@/api/fetchOrders";
 import useStore, { clearSession } from "@/store/useStore";
 import { Order } from "@/types/order";
@@ -6,6 +7,7 @@ import { Redirect, router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
+  Alert,
   ActivityIndicator,
   FlatList,
   Pressable,
@@ -19,10 +21,12 @@ import {
 export default function Index() {
   const user = useStore((s) => s.user);
   const logout = useStore((s) => s.logout);
+  const clearOrderProgress = useStore((s) => s.clearOrderProgress);
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
 
@@ -58,6 +62,32 @@ export default function Index() {
     loadOrders(true);
   };
 
+  const handleClear = () => {
+    Alert.alert(
+      "Clear all orders",
+      "This will remove all orders from the server and reset all picking progress. Are you sure?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear",
+          style: "destructive",
+          onPress: async () => {
+            setClearing(true);
+            try {
+              await clearOrders();
+              clearOrderProgress();
+              setOrders([]);
+            } catch (e: unknown) {
+              Alert.alert("Error", e instanceof Error ? e.message : "Failed to clear orders");
+            } finally {
+              setClearing(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const filteredOrders = useMemo(() => {
     const sorted = [...orders].sort((a, b) =>
       a.customer_name.localeCompare(b.customer_name, undefined, { sensitivity: "base" })
@@ -77,9 +107,7 @@ export default function Index() {
       onPress={() => router.push({ pathname: "/order/[id]", params: { id: item.invoice_number } })}
     >
       <View style={styles.cardTop}>
-        <Text style={styles.customerName}>
-          {item.customer_name}
-        </Text>
+        <Text style={styles.customerName}>{item.customer_name}</Text>
         <View style={styles.cardRight}>
           <Text style={styles.invoiceNumber}>#{item.invoice_number}</Text>
           <Text style={styles.cardTotal}>{item.total.toFixed(2)}</Text>
@@ -141,11 +169,32 @@ export default function Index() {
               <Text style={styles.emptyText}>
                 {query ? "No orders match your search." : "No orders found."}
               </Text>
+              {!query && (
+                <Pressable style={styles.fetchButton} onPress={() => loadOrders()}>
+                  <Text style={styles.fetchButtonText}>Fetch orders</Text>
+                </Pressable>
+              )}
             </View>
           }
         />
       )}
 
+      {/* Clear button */}
+      {!loading && !error && orders.length > 0 && (
+        <View style={styles.footer}>
+          <Pressable
+            style={[styles.clearButton, clearing && styles.clearButtonDisabled]}
+            onPress={handleClear}
+            disabled={clearing}
+          >
+            {clearing ? (
+              <ActivityIndicator color="#C0392B" />
+            ) : (
+              <Text style={styles.clearButtonText}>Clear all orders</Text>
+            )}
+          </Pressable>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -194,12 +243,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: 32,
+    gap: 16,
   },
   errorText: {
     color: "#C0392B",
     fontSize: 15,
     textAlign: "center",
-    marginBottom: 16,
   },
   retryButton: {
     borderWidth: 1,
@@ -216,10 +265,23 @@ const styles = StyleSheet.create({
   emptyText: {
     color: "#aaa",
     fontSize: 15,
+    textAlign: "center",
+  },
+  fetchButton: {
+    backgroundColor: "#208AEF",
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  fetchButtonText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
   },
   list: {
     padding: 16,
     gap: 12,
+    flexGrow: 1,
   },
   card: {
     backgroundColor: "#fff",
@@ -263,5 +325,25 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: "#208AEF",
+  },
+  footer: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#E2DAD3",
+  },
+  clearButton: {
+    borderWidth: 1.5,
+    borderColor: "#C0392B",
+    borderRadius: 10,
+    paddingVertical: 13,
+    alignItems: "center",
+  },
+  clearButtonDisabled: {
+    opacity: 0.5,
+  },
+  clearButtonText: {
+    color: "#C0392B",
+    fontSize: 15,
+    fontWeight: "600",
   },
 });
