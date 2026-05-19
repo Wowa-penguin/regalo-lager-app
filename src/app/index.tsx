@@ -29,6 +29,10 @@ export default function Index() {
   const [clearing, setClearing] = useState(false);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
+  const [zipFilter, setZipFilter] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
 
   if (!user.username) return <Redirect href="/login" />;
 
@@ -88,18 +92,25 @@ export default function Index() {
     );
   };
 
+  const activeFilterCount = [zipFilter, minPrice, maxPrice].filter(Boolean).length;
+
   const filteredOrders = useMemo(() => {
     const sorted = [...orders].sort((a, b) =>
       a.customer_name.localeCompare(b.customer_name, undefined, { sensitivity: "base" })
     );
     const q = query.trim().toLowerCase();
-    if (!q) return sorted;
-    return sorted.filter(
-      (o) =>
-        o.customer_name.toLowerCase().includes(q) ||
-        String(o.invoice_number).includes(q)
-    );
-  }, [orders, query]);
+    const zip = zipFilter.trim().toLowerCase();
+    const min = minPrice !== "" ? parseFloat(minPrice) : null;
+    const max = maxPrice !== "" ? parseFloat(maxPrice) : null;
+
+    return sorted.filter((o) => {
+      if (q && !o.customer_name.toLowerCase().includes(q) && !String(o.invoice_number).includes(q)) return false;
+      if (zip && !o.zip_code.toLowerCase().startsWith(zip)) return false;
+      if (min !== null && !isNaN(min) && o.total < min) return false;
+      if (max !== null && !isNaN(max) && o.total > max) return false;
+      return true;
+    });
+  }, [orders, query, zipFilter, minPrice, maxPrice]);
 
   const renderOrder = ({ item }: { item: Order }) => (
     <Pressable
@@ -129,7 +140,7 @@ export default function Index() {
         </Pressable>
       </View>
 
-      {/* Search */}
+      {/* Search + Filter */}
       <View style={styles.searchRow}>
         <TextInput
           style={styles.searchInput}
@@ -140,7 +151,64 @@ export default function Index() {
           autoCorrect={false}
           clearButtonMode="while-editing"
         />
+        <Pressable
+          style={[styles.filterButton, activeFilterCount > 0 && styles.filterButtonActive]}
+          onPress={() => setShowFilters((v) => !v)}
+        >
+          <Text style={[styles.filterButtonText, activeFilterCount > 0 && styles.filterButtonTextActive]}>
+            {activeFilterCount > 0 ? `Filter (${activeFilterCount})` : "Filter"}
+          </Text>
+        </Pressable>
       </View>
+
+      {showFilters && (
+        <View style={styles.filterPanel}>
+          <View style={styles.filterField}>
+            <Text style={styles.filterLabel}>Zip code</Text>
+            <TextInput
+              style={styles.filterInput}
+              placeholder="e.g. 101"
+              placeholderTextColor="#bbb"
+              value={zipFilter}
+              onChangeText={setZipFilter}
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+              keyboardType="numeric"
+            />
+          </View>
+          <View style={styles.filterRow}>
+            <View style={[styles.filterField, { flex: 1 }]}>
+              <Text style={styles.filterLabel}>Min price</Text>
+              <TextInput
+                style={styles.filterInput}
+                placeholder="0"
+                placeholderTextColor="#bbb"
+                value={minPrice}
+                onChangeText={setMinPrice}
+                keyboardType="numeric"
+                clearButtonMode="while-editing"
+              />
+            </View>
+            <View style={[styles.filterField, { flex: 1 }]}>
+              <Text style={styles.filterLabel}>Max price</Text>
+              <TextInput
+                style={styles.filterInput}
+                placeholder="∞"
+                placeholderTextColor="#bbb"
+                value={maxPrice}
+                onChangeText={setMaxPrice}
+                keyboardType="numeric"
+                clearButtonMode="while-editing"
+              />
+            </View>
+          </View>
+          {activeFilterCount > 0 && (
+            <Pressable onPress={() => { setZipFilter(""); setMinPrice(""); setMaxPrice(""); }}>
+              <Text style={styles.clearFiltersText}>Clear filters</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
 
       {/* Content */}
       {loading ? (
@@ -223,12 +291,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: "#E2DAD3",
+    gap: 8,
   },
   searchInput: {
+    flex: 1,
     backgroundColor: "#fff",
     borderWidth: 1,
     borderColor: "#E2DAD3",
@@ -237,6 +309,62 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     fontSize: 15,
     color: "#1a1a1a",
+  },
+  filterButton: {
+    borderWidth: 1,
+    borderColor: "#E2DAD3",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    backgroundColor: "#fff",
+  },
+  filterButtonActive: {
+    borderColor: "#208AEF",
+    backgroundColor: "#EBF4FF",
+  },
+  filterButtonText: {
+    fontSize: 14,
+    color: "#888",
+    fontWeight: "500",
+  },
+  filterButtonTextActive: {
+    color: "#208AEF",
+  },
+  filterPanel: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2DAD3",
+    backgroundColor: "#FAFAF9",
+    gap: 10,
+  },
+  filterRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  filterField: {
+    gap: 4,
+  },
+  filterLabel: {
+    fontSize: 12,
+    color: "#888",
+    fontWeight: "500",
+  },
+  filterInput: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#E2DAD3",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    fontSize: 14,
+    color: "#1a1a1a",
+  },
+  clearFiltersText: {
+    fontSize: 13,
+    color: "#208AEF",
+    fontWeight: "500",
+    alignSelf: "flex-start",
   },
   centered: {
     flex: 1,
