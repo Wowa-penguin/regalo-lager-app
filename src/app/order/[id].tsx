@@ -85,7 +85,7 @@ export default function OrderDetail() {
     }
     const next = current + 1;
     setItemPicked(invoiceNumber, line.item_code, next);
-    setScanFeedback(`✓ ${line.item_code}   ${next} / ${line.quantity} ${line.unit}`);
+    setScanFeedback(`✓ ${line.description || line.item_code}   ${next} / ${line.quantity} ${line.unit}`);
   };
 
   const handleScanned = (data: string) => {
@@ -110,15 +110,14 @@ export default function OrderDetail() {
     pickItem(line);
   };
 
-  const handleAssign = async (product: Product) => {
-    if (!pendingBarcode || !order?.lines) return;
+  const handleAssign = async (line: OrderLine) => {
+    if (!pendingBarcode) return;
     setAssigning(true);
     setAssignError("");
     try {
-      const mapping = await createBarcode(pendingBarcode, product.product_id);
+      const mapping = await createBarcode(pendingBarcode, line.item_code);
       addBarcode(mapping);
-      const line = order.lines.find((l) => l.item_code === product.product_id);
-      if (line) pickItem(line);
+      pickItem(line);
       setPendingBarcode(null);
     } catch (e: unknown) {
       setAssignError(e instanceof Error ? e.message : "Failed to save — check connection");
@@ -142,19 +141,13 @@ export default function OrderDetail() {
     [barcodes]
   );
 
-  const orderItemCodes = useMemo(
-    () => new Set(lines.map((l) => l.item_code)),
-    [lines]
-  );
-
-  const assignableProducts = useMemo(
-    () => products.filter(
-      (p) =>
-        orderItemCodes.has(p.product_id) &&
-        (pickedCounts[p.product_id] ?? 0) === 0 &&
-        !mappedProductIds.has(p.product_id)
+  const assignableLines = useMemo(
+    () => lines.filter(
+      (l) =>
+        (pickedCounts[l.item_code] ?? 0) === 0 &&
+        !mappedProductIds.has(l.item_code)
     ),
-    [products, orderItemCodes, pickedCounts, mappedProductIds]
+    [lines, pickedCounts, mappedProductIds]
   );
 
   const completedLines = lines.filter(
@@ -236,16 +229,21 @@ export default function OrderDetail() {
     );
   };
 
-  const renderAssignItem = ({ item }: { item: Product }) => (
-    <Pressable
-      style={styles.assignCard}
-      onPress={() => handleAssign(item)}
-      disabled={assigning}
-    >
-      <Text style={styles.assignDescription}>{item.product_id}</Text>
-      <Text style={styles.assignItemCode}>{item.category}</Text>
-    </Pressable>
-  );
+  const renderAssignItem = ({ item }: { item: OrderLine }) => {
+    const category = products.find((p) => p.product_id === item.item_code)?.category;
+    return (
+      <Pressable
+        style={styles.assignCard}
+        onPress={() => handleAssign(item)}
+        disabled={assigning}
+      >
+        <Text style={styles.assignDescription}>{item.description || item.item_code}</Text>
+        <Text style={styles.assignItemCode}>
+          {item.item_code}{category ? ` · ${category}` : ""}
+        </Text>
+      </Pressable>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -313,8 +311,10 @@ export default function OrderDetail() {
         {!!assignError && <Text style={styles.assignError}>{assignError}</Text>}
 
             <FlatList
-              data={assignableProducts}
-              keyExtractor={(item) => item.product_id}
+              data={assignableLines}
+              keyExtractor={(item, index) =>
+                item.id != null ? String(item.id) : `${item.item_code}-${index}`
+              }
               renderItem={renderAssignItem}
               style={styles.assignList}
               contentContainerStyle={{ gap: 8 }}
