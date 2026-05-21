@@ -230,16 +230,18 @@ export default function OrderDetail() {
   };
 
   const renderAssignItem = ({ item }: { item: OrderLine }) => {
-    const category = products.find((p) => p.product_id === item.item_code)?.category;
+    const product = products.find((p) => p.product_id === item.item_code);
     return (
       <Pressable
         style={styles.assignCard}
         onPress={() => handleAssign(item)}
         disabled={assigning}
       >
-        <Text style={styles.assignDescription}>{item.description || item.item_code}</Text>
+        <Text style={styles.assignDescription}>
+          {product?.name || item.description || item.item_code}
+        </Text>
         <Text style={styles.assignItemCode}>
-          {item.item_code}{category ? ` · ${category}` : ""}
+          {item.item_code}{product?.category ? ` · ${product.category}` : ""}
         </Text>
       </Pressable>
     );
