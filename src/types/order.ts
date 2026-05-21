@@ -22,5 +22,6 @@ export interface Order {
   total: number;
   discount: number;
   payment_mode: string;
+  finished: boolean;
   lines?: OrderLine[];
 }

@@ -114,7 +114,7 @@ export default function Index() {
 
   const renderOrder = ({ item }: { item: Order }) => (
     <Pressable
-      style={styles.card}
+      style={[styles.card, item.finished && styles.cardFinished]}
       onPress={() => router.push({ pathname: "/order/[id]", params: { id: item.invoice_number } })}
     >
       <View style={styles.cardTop}>
@@ -418,6 +418,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E2DAD3",
     gap: 8,
+  },
+  cardFinished: {
+    backgroundColor: "#F0FFF4",
+    borderColor: "#C3E6CB",
   },
   cardTop: {
     flexDirection: "row",

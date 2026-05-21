@@ -1,6 +1,7 @@
 import { fetchOrder } from "@/api/fetchOrder";
 import { fetchProducts } from "@/api/fetchProducts";
 import { createBarcode } from "@/api/createBarcode";
+import { finishOrder } from "@/api/finishOrder";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import useStore from "@/store/useStore";
 import useBarcodeStore from "@/store/useBarcodeStore";
@@ -38,6 +39,8 @@ export default function OrderDetail() {
   const [pendingBarcode, setPendingBarcode] = useState<string | null>(null);
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState("");
+  const [finishing, setFinishing] = useState(false);
+  const [finishError, setFinishError] = useState("");
 
   const [manualEntry, setManualEntry] = useState<{ line: OrderLine; count: number } | null>(null);
 
@@ -123,6 +126,19 @@ export default function OrderDetail() {
       setAssignError(e instanceof Error ? e.message : "Failed to save — check connection");
     } finally {
       setAssigning(false);
+    }
+  };
+
+  const handleFinish = async () => {
+    setFinishing(true);
+    setFinishError("");
+    try {
+      await finishOrder(invoiceNumber);
+      setOrder((o) => o ? { ...o, finished: true } : o);
+    } catch (e: unknown) {
+      setFinishError(e instanceof Error ? e.message : "Failed to finish order");
+    } finally {
+      setFinishing(false);
     }
   };
 
@@ -287,6 +303,29 @@ export default function OrderDetail() {
             renderItem={renderLine}
             contentContainerStyle={styles.list}
           />
+
+          <View style={styles.footer}>
+            {!!finishError && (
+              <Text style={styles.finishError}>{finishError}</Text>
+            )}
+            <Pressable
+              style={[
+                styles.finishButton,
+                order.finished && styles.finishButtonDone,
+                finishing && styles.finishButtonDisabled,
+              ]}
+              onPress={handleFinish}
+              disabled={finishing || order.finished}
+            >
+              {finishing ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.finishButtonText}>
+                  {order.finished ? "Order finished" : "Finish order"}
+                </Text>
+              )}
+            </Pressable>
+          </View>
         </>
       ) : null}
 
@@ -503,6 +542,34 @@ const styles = StyleSheet.create({
     fontSize: 15,
     textAlign: "center",
     paddingHorizontal: 32,
+  },
+  footer: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#E2DAD3",
+    gap: 8,
+  },
+  finishButton: {
+    backgroundColor: "#208AEF",
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  finishButtonDone: {
+    backgroundColor: "#27AE60",
+  },
+  finishButtonDisabled: {
+    opacity: 0.6,
+  },
+  finishButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  finishError: {
+    color: "#C0392B",
+    fontSize: 13,
+    textAlign: "center",
   },
   progressBanner: {
     backgroundColor: "#EBF5FF",
