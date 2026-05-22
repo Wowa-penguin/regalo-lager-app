@@ -8,6 +8,5 @@ export const fetchOrders = async (): Promise<Order[]> => {
   });
   if (!res.ok) throw new Error("Failed to fetch orders");
   const json = await res.json();
-  console.log(json);
   return json.orders ?? [];
 };
