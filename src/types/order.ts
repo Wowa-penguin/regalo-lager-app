@@ -22,6 +22,7 @@ export interface Order {
   total: number;
   discount: number;
   payment_mode: string;
+  hstatus: string;
   finished: boolean;
   lines?: OrderLine[];
 }

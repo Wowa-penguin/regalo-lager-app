@@ -1,6 +1,14 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useEffect, useRef, useState } from "react";
-import { Animated, Dimensions, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Animated,
+  Dimensions,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const SCAN_SIZE = SCREEN_WIDTH * 0.75;
@@ -15,7 +23,12 @@ interface Props {
   feedback?: string;
 }
 
-export default function BarcodeScanner({ visible, onClose, onScanned, feedback }: Props) {
+export default function BarcodeScanner({
+  visible,
+  onClose,
+  onScanned,
+  feedback,
+}: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const [torch, setTorch] = useState(false);
   const [zoom, setZoom] = useState(0);
@@ -43,7 +56,7 @@ export default function BarcodeScanner({ visible, onClose, onScanned, feedback }
           duration: 1800,
           useNativeDriver: true,
         }),
-      ])
+      ]),
     );
     loop.start();
     return () => loop.stop();
@@ -57,8 +70,10 @@ export default function BarcodeScanner({ visible, onClose, onScanned, feedback }
     onScanned(data);
   };
 
-  const zoomIn = () => setZoom((z) => Math.min(+(z + ZOOM_STEP).toFixed(1), MAX_ZOOM));
-  const zoomOut = () => setZoom((z) => Math.max(+(z - ZOOM_STEP).toFixed(1), 0));
+  const zoomIn = () =>
+    setZoom((z) => Math.min(+(z + ZOOM_STEP).toFixed(1), MAX_ZOOM));
+  const zoomOut = () =>
+    setZoom((z) => Math.max(+(z - ZOOM_STEP).toFixed(1), 0));
 
   const renderContent = () => {
     if (!permission) return <View style={styles.flex} />;
@@ -66,7 +81,9 @@ export default function BarcodeScanner({ visible, onClose, onScanned, feedback }
     if (!permission.granted) {
       return (
         <View style={styles.permissionContainer}>
-          <Text style={styles.message}>Camera permission is required to scan barcodes.</Text>
+          <Text style={styles.message}>
+            Camera permission is required to scan barcodes.
+          </Text>
           <Pressable style={styles.grantButton} onPress={requestPermission}>
             <Text style={styles.grantButtonText}>Grant Permission</Text>
           </Pressable>
@@ -83,7 +100,7 @@ export default function BarcodeScanner({ visible, onClose, onScanned, feedback }
           zoom={zoom}
           enableTorch={torch}
           barcodeScannerSettings={{
-            barcodeTypes: ["ean13", "ean8", "code128", "code39", "qr"],
+            barcodeTypes: ["ean13", "ean8", "code128", "code39"],
           }}
           onBarcodeScanned={handleBarcode}
         />
@@ -98,7 +115,10 @@ export default function BarcodeScanner({ visible, onClose, onScanned, feedback }
             <View style={[styles.corner, styles.bottomLeft]} />
             <View style={[styles.corner, styles.bottomRight]} />
             <Animated.View
-              style={[styles.scanLine, { transform: [{ translateY: scanLineY }] }]}
+              style={[
+                styles.scanLine,
+                { transform: [{ translateY: scanLineY }] },
+              ]}
             />
           </View>
           <View style={styles.overlaySide} />
@@ -114,18 +134,29 @@ export default function BarcodeScanner({ visible, onClose, onScanned, feedback }
           <View style={styles.controls}>
             {/* Torch */}
             <Pressable
-              style={[styles.controlButton, torch && styles.controlButtonActive]}
+              style={[
+                styles.controlButton,
+                torch && styles.controlButtonActive,
+              ]}
               onPress={() => setTorch((t) => !t)}
             >
               <Text style={styles.controlIcon}>⚡</Text>
-              <Text style={[styles.controlLabel, torch && styles.controlLabelActive]}>
+              <Text
+                style={[
+                  styles.controlLabel,
+                  torch && styles.controlLabelActive,
+                ]}
+              >
                 {torch ? "Light on" : "Light"}
               </Text>
             </Pressable>
 
             {/* Zoom out */}
             <Pressable
-              style={[styles.controlButton, zoom === 0 && styles.controlButtonDisabled]}
+              style={[
+                styles.controlButton,
+                zoom === 0 && styles.controlButtonDisabled,
+              ]}
               onPress={zoomOut}
               disabled={zoom === 0}
             >
@@ -142,7 +173,10 @@ export default function BarcodeScanner({ visible, onClose, onScanned, feedback }
 
             {/* Zoom in */}
             <Pressable
-              style={[styles.controlButton, zoom >= MAX_ZOOM && styles.controlButtonDisabled]}
+              style={[
+                styles.controlButton,
+                zoom >= MAX_ZOOM && styles.controlButtonDisabled,
+              ]}
               onPress={zoomIn}
               disabled={zoom >= MAX_ZOOM}
             >

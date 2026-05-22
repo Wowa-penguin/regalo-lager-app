@@ -5,10 +5,9 @@ import { Order } from "@/types/order";
 import { setAuthToken } from "@/utils/auth";
 import { Redirect, router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { SafeAreaView } from "react-native-safe-area-context";
 import {
-  Alert,
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -17,6 +16,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function Index() {
   const user = useStore((s) => s.user);
@@ -32,6 +32,7 @@ export default function Index() {
   const [zipFilter, setZipFilter] = useState("");
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
   if (!user.username) return <Redirect href="/login" />;
@@ -82,21 +83,37 @@ export default function Index() {
               clearOrderProgress();
               setOrders([]);
             } catch (e: unknown) {
-              Alert.alert("Error", e instanceof Error ? e.message : "Failed to clear orders");
+              Alert.alert(
+                "Error",
+                e instanceof Error ? e.message : "Failed to clear orders",
+              );
             } finally {
               setClearing(false);
             }
           },
         },
-      ]
+      ],
     );
   };
 
-  const activeFilterCount = [zipFilter, minPrice, maxPrice].filter(Boolean).length;
+  const activeFilterCount = [
+    zipFilter,
+    minPrice,
+    maxPrice,
+    selectedStatus,
+  ].filter(Boolean).length;
+
+  const statuses = useMemo(
+    () =>
+      Array.from(new Set(orders.map((o) => o.hstatus).filter(Boolean))).sort(),
+    [orders],
+  );
 
   const filteredOrders = useMemo(() => {
     const sorted = [...orders].sort((a, b) =>
-      a.customer_name.localeCompare(b.customer_name, undefined, { sensitivity: "base" })
+      a.customer_name.localeCompare(b.customer_name, undefined, {
+        sensitivity: "base",
+      }),
     );
     const q = query.trim().toLowerCase();
     const zip = zipFilter.trim().toLowerCase();
@@ -104,24 +121,40 @@ export default function Index() {
     const max = maxPrice !== "" ? parseFloat(maxPrice) : null;
 
     return sorted.filter((o) => {
-      if (q && !o.customer_name.toLowerCase().includes(q) && !String(o.invoice_number).includes(q)) return false;
+      if (
+        q &&
+        !o.customer_name.toLowerCase().includes(q) &&
+        !String(o.invoice_number).includes(q)
+      )
+        return false;
       if (zip && !o.zip_code.toLowerCase().startsWith(zip)) return false;
       if (min !== null && !isNaN(min) && o.total < min) return false;
       if (max !== null && !isNaN(max) && o.total > max) return false;
+      if (selectedStatus && o.hstatus !== selectedStatus) return false;
       return true;
     });
-  }, [orders, query, zipFilter, minPrice, maxPrice]);
+  }, [orders, query, zipFilter, minPrice, maxPrice, selectedStatus]);
 
   const renderOrder = ({ item }: { item: Order }) => (
     <Pressable
       style={[styles.card, item.finished && styles.cardFinished]}
-      onPress={() => router.push({ pathname: "/order/[id]", params: { id: item.invoice_number } })}
+      onPress={() =>
+        router.push({
+          pathname: "/order/[id]",
+          params: { id: item.invoice_number },
+        })
+      }
     >
       <View style={styles.cardTop}>
         <Text style={styles.customerName}>{item.customer_name}</Text>
         <View style={styles.cardRight}>
           <Text style={styles.invoiceNumber}>#{item.invoice_number}</Text>
           <Text style={styles.cardTotal}>{item.total.toFixed(2)}</Text>
+          {!!item.hstatus && (
+            <View style={styles.statusBadge}>
+              <Text style={styles.statusBadgeText}>{item.hstatus}</Text>
+            </View>
+          )}
         </View>
       </View>
       <View style={styles.cardBottom}>
@@ -152,10 +185,18 @@ export default function Index() {
           clearButtonMode="while-editing"
         />
         <Pressable
-          style={[styles.filterButton, activeFilterCount > 0 && styles.filterButtonActive]}
+          style={[
+            styles.filterButton,
+            activeFilterCount > 0 && styles.filterButtonActive,
+          ]}
           onPress={() => setShowFilters((v) => !v)}
         >
-          <Text style={[styles.filterButtonText, activeFilterCount > 0 && styles.filterButtonTextActive]}>
+          <Text
+            style={[
+              styles.filterButtonText,
+              activeFilterCount > 0 && styles.filterButtonTextActive,
+            ]}
+          >
             {activeFilterCount > 0 ? `Filter (${activeFilterCount})` : "Filter"}
           </Text>
         </Pressable>
@@ -202,8 +243,41 @@ export default function Index() {
               />
             </View>
           </View>
+          {statuses.length > 0 && (
+            <View style={styles.filterField}>
+              <Text style={styles.filterLabel}>Status</Text>
+              <View style={styles.statusChips}>
+                {statuses.map((s) => (
+                  <Pressable
+                    key={s}
+                    style={[
+                      styles.statusChip,
+                      selectedStatus === s && styles.statusChipActive,
+                    ]}
+                    onPress={() => setSelectedStatus((v) => (v === s ? "" : s))}
+                  >
+                    <Text
+                      style={[
+                        styles.statusChipText,
+                        selectedStatus === s && styles.statusChipTextActive,
+                      ]}
+                    >
+                      {s}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          )}
           {activeFilterCount > 0 && (
-            <Pressable onPress={() => { setZipFilter(""); setMinPrice(""); setMaxPrice(""); }}>
+            <Pressable
+              onPress={() => {
+                setZipFilter("");
+                setMinPrice("");
+                setMaxPrice("");
+                setSelectedStatus("");
+              }}
+            >
               <Text style={styles.clearFiltersText}>Clear filters</Text>
             </Pressable>
           )}
@@ -230,7 +304,11 @@ export default function Index() {
           contentContainerStyle={styles.list}
           keyboardShouldPersistTaps="handled"
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#208AEF" />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor="#208AEF"
+            />
           }
           ListEmptyComponent={
             <View style={styles.centered}>
@@ -238,7 +316,10 @@ export default function Index() {
                 {query ? "No orders match your search." : "No orders found."}
               </Text>
               {!query && (
-                <Pressable style={styles.fetchButton} onPress={() => loadOrders()}>
+                <Pressable
+                  style={styles.fetchButton}
+                  onPress={() => loadOrders()}
+                >
                   <Text style={styles.fetchButtonText}>Fetch orders</Text>
                 </Pressable>
               )}
@@ -456,6 +537,44 @@ const styles = StyleSheet.create({
   cardTotal: {
     fontSize: 13,
     fontWeight: "600",
+    color: "#208AEF",
+  },
+  statusBadge: {
+    backgroundColor: "#F0F0F0",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    alignSelf: "flex-end",
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    color: "#666",
+    fontWeight: "500",
+  },
+  statusChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 2,
+  },
+  statusChip: {
+    borderWidth: 1,
+    borderColor: "#E2DAD3",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    backgroundColor: "#fff",
+  },
+  statusChipActive: {
+    borderColor: "#208AEF",
+    backgroundColor: "#EBF4FF",
+  },
+  statusChipText: {
+    fontSize: 13,
+    color: "#888",
+    fontWeight: "500",
+  },
+  statusChipTextActive: {
     color: "#208AEF",
   },
   footer: {
