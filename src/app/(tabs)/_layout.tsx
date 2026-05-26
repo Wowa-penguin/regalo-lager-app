@@ -26,6 +26,10 @@ export default function TabsLayout() {
         name="products"
         options={{ title: "Products", tabBarIcon: () => null }}
       />
+      <Tabs.Screen
+        name="scanned"
+        options={{ title: "Scanned", tabBarIcon: () => null }}
+      />
     </Tabs>
   );
 }

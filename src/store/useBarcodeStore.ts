@@ -5,6 +5,7 @@ interface BarcodeState {
   barcodes: BarcodeMapping[];
   setBarcodes: (barcodes: BarcodeMapping[]) => void;
   addBarcode: (barcode: BarcodeMapping) => void;
+  updateBarcode: (id: number, updated: Partial<Omit<BarcodeMapping, "id">>) => void;
   findProductId: (barcode: string) => string | null;
 }
 
@@ -15,6 +16,11 @@ const useBarcodeStore = create<BarcodeState>((set, get) => ({
 
   addBarcode: (barcode) =>
     set((state) => ({ barcodes: [...state.barcodes, barcode] })),
+
+  updateBarcode: (id, updated) =>
+    set((state) => ({
+      barcodes: state.barcodes.map((b) => (b.id === id ? { ...b, ...updated } : b)),
+    })),
 
   findProductId: (barcode) =>
     get().barcodes.find((b) => b.barcode === barcode)?.product_id ?? null,
