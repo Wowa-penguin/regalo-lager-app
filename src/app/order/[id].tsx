@@ -40,7 +40,10 @@ export default function OrderDetail() {
   const [pendingBarcode, setPendingBarcode] = useState<string | null>(null);
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState("");
-  const [wrongOrderProduct, setWrongOrderProduct] = useState<{ productId: string; barcode: string } | null>(null);
+  const [wrongOrderProduct, setWrongOrderProduct] = useState<{
+    productId: string;
+    barcode: string;
+  } | null>(null);
   const [finishing, setFinishing] = useState(false);
   const [finishError, setFinishError] = useState("");
   const [toastMessage, setToastMessage] = useState("");
@@ -93,9 +96,17 @@ export default function OrderDetail() {
     setToastMessage(message);
     toastOpacity.setValue(0);
     Animated.sequence([
-      Animated.timing(toastOpacity, { toValue: 1, duration: 80, useNativeDriver: true }),
-      Animated.delay(400),
-      Animated.timing(toastOpacity, { toValue: 0, duration: 120, useNativeDriver: true }),
+      Animated.timing(toastOpacity, {
+        toValue: 1,
+        duration: 80,
+        useNativeDriver: true,
+      }),
+      Animated.delay(1000),
+      Animated.timing(toastOpacity, {
+        toValue: 0,
+        duration: 120,
+        useNativeDriver: true,
+      }),
     ]).start();
     toastTimer.current = setTimeout(() => setToastMessage(""), 620);
   };
@@ -117,7 +128,9 @@ export default function OrderDetail() {
     setScanFeedback(
       `✓ ${line.description || line.item_code}   ${next} / ${line.quantity} ${line.unit}`,
     );
-    showToast(`✓ ${line.description || line.item_code}  ${next} / ${line.quantity} ${line.unit}`);
+    showToast(
+      `✓ ${line.description || line.item_code}  ${next} / ${line.quantity} ${line.unit}`,
+    );
   };
 
   const handleScanned = (data: string) => {
@@ -186,7 +199,11 @@ export default function OrderDetail() {
       if (doneA !== doneB) return doneA - doneB;
       const pA = productMap.get(a.item_code);
       const pB = productMap.get(b.item_code);
-      const byCategory = (pA?.category ?? "").localeCompare(pB?.category ?? "", undefined, { sensitivity: "base" });
+      const byCategory = (pA?.category ?? "").localeCompare(
+        pB?.category ?? "",
+        undefined,
+        { sensitivity: "base" },
+      );
       if (byCategory !== 0) return byCategory;
       const nameA = pA?.name || a.description || a.item_code;
       const nameB = pB?.name || b.description || b.item_code;
@@ -609,20 +626,29 @@ export default function OrderDetail() {
           <View style={styles.warnSheet}>
             <Text style={styles.warnIcon}>⚠️</Text>
             <Text style={styles.warnTitle}>Wrong order</Text>
-            {wrongOrderProduct && (() => {
-              const name = products.find((p) => p.product_id === wrongOrderProduct.productId)?.name
-                || wrongOrderProduct.productId;
-              return (
-                <>
-                  <Text style={styles.warnProduct}>{name}</Text>
-                  <Text style={styles.warnBody}>
-                    This product is registered in the system but is{" "}
-                    <Text style={styles.warnBold}>not part of this order</Text>.
-                  </Text>
-                </>
-              );
-            })()}
-            <Pressable style={styles.warnButton} onPress={() => setWrongOrderProduct(null)}>
+            {wrongOrderProduct &&
+              (() => {
+                const name =
+                  products.find(
+                    (p) => p.product_id === wrongOrderProduct.productId,
+                  )?.name || wrongOrderProduct.productId;
+                return (
+                  <>
+                    <Text style={styles.warnProduct}>{name}</Text>
+                    <Text style={styles.warnBody}>
+                      This product is registered in the system but is{" "}
+                      <Text style={styles.warnBold}>
+                        not part of this order
+                      </Text>
+                      .
+                    </Text>
+                  </>
+                );
+              })()}
+            <Pressable
+              style={styles.warnButton}
+              onPress={() => setWrongOrderProduct(null)}
+            >
               <Text style={styles.warnButtonText}>Got it</Text>
             </Pressable>
           </View>
@@ -630,7 +656,10 @@ export default function OrderDetail() {
       </Modal>
 
       {!!toastMessage && (
-        <Animated.View style={[styles.toast, { opacity: toastOpacity }]} pointerEvents="none">
+        <Animated.View
+          style={[styles.toast, { opacity: toastOpacity }]}
+          pointerEvents="none"
+        >
           <Text style={styles.toastText}>{toastMessage}</Text>
         </Animated.View>
       )}
