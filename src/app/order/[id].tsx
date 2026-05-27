@@ -1,17 +1,18 @@
+import { createBarcode } from "@/api/createBarcode";
 import { fetchOrder } from "@/api/fetchOrder";
 import { fetchProducts } from "@/api/fetchProducts";
-import { createBarcode } from "@/api/createBarcode";
 import { finishOrder } from "@/api/finishOrder";
 import BarcodeScanner from "@/components/BarcodeScanner";
-import useStore from "@/store/useStore";
 import useBarcodeStore from "@/store/useBarcodeStore";
+import useStore from "@/store/useStore";
 import { Order, OrderLine } from "@/types/order";
 import { Product } from "@/types/product";
-import * as WebBrowser from "expo-web-browser";
 import { router, useLocalSearchParams } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   Modal,
   Pressable,
@@ -39,10 +40,17 @@ export default function OrderDetail() {
   const [pendingBarcode, setPendingBarcode] = useState<string | null>(null);
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState("");
+  const [wrongOrderProduct, setWrongOrderProduct] = useState<{ productId: string; barcode: string } | null>(null);
   const [finishing, setFinishing] = useState(false);
   const [finishError, setFinishError] = useState("");
+  const [toastMessage, setToastMessage] = useState("");
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [manualEntry, setManualEntry] = useState<{ line: OrderLine; count: number } | null>(null);
+  const [manualEntry, setManualEntry] = useState<{
+    line: OrderLine;
+    count: number;
+  } | null>(null);
 
   const [overpackWarning, setOverpackWarning] = useState<{
     name: string;
@@ -52,8 +60,12 @@ export default function OrderDetail() {
     unit: string;
   } | null>(null);
 
-  const pickedCounts = useStore((s) => s.pickedOrders[invoiceNumber] ?? EMPTY_COUNTS);
-  const missingCounts = useStore((s) => s.missingOrders[invoiceNumber] ?? EMPTY_MISSING);
+  const pickedCounts = useStore(
+    (s) => s.pickedOrders[invoiceNumber] ?? EMPTY_COUNTS,
+  );
+  const missingCounts = useStore(
+    (s) => s.missingOrders[invoiceNumber] ?? EMPTY_MISSING,
+  );
   const setItemPicked = useStore((s) => s.setItemPicked);
   const setItemMissing = useStore((s) => s.setItemMissing);
 
@@ -65,14 +77,28 @@ export default function OrderDetail() {
     fetchOrder(Number(id))
       .then(setOrder)
       .catch((e: unknown) =>
-        setError(e instanceof Error ? e.message : "Failed to load order")
+        setError(e instanceof Error ? e.message : "Failed to load order"),
       )
       .finally(() => setLoading(false));
   }, [id]);
 
   useEffect(() => {
-    fetchProducts().then(setProducts).catch(() => {});
+    fetchProducts()
+      .then(setProducts)
+      .catch(() => {});
   }, []);
+
+  const showToast = (message: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToastMessage(message);
+    toastOpacity.setValue(0);
+    Animated.sequence([
+      Animated.timing(toastOpacity, { toValue: 1, duration: 80, useNativeDriver: true }),
+      Animated.delay(400),
+      Animated.timing(toastOpacity, { toValue: 0, duration: 120, useNativeDriver: true }),
+    ]).start();
+    toastTimer.current = setTimeout(() => setToastMessage(""), 620);
+  };
 
   const pickItem = (line: OrderLine) => {
     const current = pickedCounts[line.item_code] ?? 0;
@@ -88,7 +114,10 @@ export default function OrderDetail() {
     }
     const next = current + 1;
     setItemPicked(invoiceNumber, line.item_code, next);
-    setScanFeedback(`✓ ${line.description || line.item_code}   ${next} / ${line.quantity} ${line.unit}`);
+    setScanFeedback(
+      `✓ ${line.description || line.item_code}   ${next} / ${line.quantity} ${line.unit}`,
+    );
+    showToast(`✓ ${line.description || line.item_code}  ${next} / ${line.quantity} ${line.unit}`);
   };
 
   const handleScanned = (data: string) => {
@@ -100,12 +129,17 @@ export default function OrderDetail() {
       return;
     }
 
-    const productId = findProductId(data) ?? data;
-    const line = order.lines.find((l) => l.item_code === productId);
+    const knownProductId = findProductId(data);
+    const resolvedId = knownProductId ?? data;
+    const line = order.lines.find((l) => l.item_code === resolvedId);
 
     if (!line) {
       setScannerVisible(false);
-      setPendingBarcode(data);
+      if (knownProductId !== null) {
+        setWrongOrderProduct({ productId: knownProductId, barcode: data });
+      } else {
+        setPendingBarcode(data);
+      }
       return;
     }
 
@@ -123,7 +157,9 @@ export default function OrderDetail() {
       pickItem(line);
       setPendingBarcode(null);
     } catch (e: unknown) {
-      setAssignError(e instanceof Error ? e.message : "Failed to save — check connection");
+      setAssignError(
+        e instanceof Error ? e.message : "Failed to save — check connection",
+      );
     } finally {
       setAssigning(false);
     }
@@ -134,7 +170,7 @@ export default function OrderDetail() {
     setFinishError("");
     try {
       await finishOrder(invoiceNumber);
-      setOrder((o) => o ? { ...o, finished: true } : o);
+      setOrder((o) => (o ? { ...o, finished: true } : o));
     } catch (e: unknown) {
       setFinishError(e instanceof Error ? e.message : "Failed to finish order");
     } finally {
@@ -142,32 +178,39 @@ export default function OrderDetail() {
     }
   };
 
-  const lines = useMemo(
-    () =>
-      [...(order?.lines ?? [])].sort((a, b) => {
-        const byCode = a.item_code.localeCompare(b.item_code, undefined, { numeric: true, sensitivity: "base" });
-        if (byCode !== 0) return byCode;
-        return (a.description ?? "").localeCompare(b.description ?? "", undefined, { sensitivity: "base" });
-      }),
-    [order?.lines]
-  );
+  const lines = useMemo(() => {
+    const productMap = new Map(products.map((p) => [p.product_id, p]));
+    return [...(order?.lines ?? [])].sort((a, b) => {
+      const doneA = (pickedCounts[a.item_code] ?? 0) >= a.quantity ? 1 : 0;
+      const doneB = (pickedCounts[b.item_code] ?? 0) >= b.quantity ? 1 : 0;
+      if (doneA !== doneB) return doneA - doneB;
+      const pA = productMap.get(a.item_code);
+      const pB = productMap.get(b.item_code);
+      const byCategory = (pA?.category ?? "").localeCompare(pB?.category ?? "", undefined, { sensitivity: "base" });
+      if (byCategory !== 0) return byCategory;
+      const nameA = pA?.name || a.description || a.item_code;
+      const nameB = pB?.name || b.description || b.item_code;
+      return nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
+    });
+  }, [order?.lines, products, pickedCounts]);
 
   const mappedProductIds = useMemo(
     () => new Set(barcodes.map((b) => b.product_id)),
-    [barcodes]
+    [barcodes],
   );
 
   const assignableLines = useMemo(
-    () => lines.filter(
-      (l) =>
-        (pickedCounts[l.item_code] ?? 0) === 0 &&
-        !mappedProductIds.has(l.item_code)
-    ),
-    [lines, pickedCounts, mappedProductIds]
+    () =>
+      lines.filter(
+        (l) =>
+          (pickedCounts[l.item_code] ?? 0) === 0 &&
+          !mappedProductIds.has(l.item_code),
+      ),
+    [lines, pickedCounts, mappedProductIds],
   );
 
   const completedLines = lines.filter(
-    (l) => (pickedCounts[l.item_code] ?? 0) >= l.quantity
+    (l) => (pickedCounts[l.item_code] ?? 0) >= l.quantity,
   ).length;
   const allDone = lines.length > 0 && completedLines === lines.length;
 
@@ -186,7 +229,12 @@ export default function OrderDetail() {
       >
         <View style={styles.lineLeft}>
           <Pressable
-            onPress={() => setManualEntry({ line: item, count: pickedCounts[item.item_code] ?? 0 })}
+            onPress={() =>
+              setManualEntry({
+                line: item,
+                count: pickedCounts[item.item_code] ?? 0,
+              })
+            }
             hitSlop={6}
             style={[
               styles.statusRing,
@@ -206,7 +254,10 @@ export default function OrderDetail() {
           </Pressable>
           <View style={styles.lineInfo}>
             <Text
-              style={[styles.description, isComplete && styles.descriptionComplete]}
+              style={[
+                styles.description,
+                isComplete && styles.descriptionComplete,
+              ]}
             >
               {item.description || item.item_code}
             </Text>
@@ -233,7 +284,7 @@ export default function OrderDetail() {
           <Pressable
             onPress={() =>
               WebBrowser.openBrowserAsync(
-                `https://regalo.is/leit?q=${encodeURIComponent(item.item_code)}&page=1&pageIndex=0&pageSize=25`
+                `https://regalo.is/leit?q=${encodeURIComponent(item.item_code)}&page=1&pageIndex=0&pageSize=25`,
               )
             }
             hitSlop={8}
@@ -257,7 +308,8 @@ export default function OrderDetail() {
           {product?.name || item.description || item.item_code}
         </Text>
         <Text style={styles.assignItemCode}>
-          {item.item_code}{product?.category ? ` · ${product.category}` : ""}
+          {item.item_code}
+          {product?.category ? ` · ${product.category}` : ""}
         </Text>
       </Pressable>
     );
@@ -272,8 +324,22 @@ export default function OrderDetail() {
         <Text style={styles.headerTitle} numberOfLines={1}>
           {order?.customer_name ?? `Order #${id}`}
         </Text>
-        <Pressable style={styles.scanButton} onPress={() => { processingRef.current = false; setScannerVisible(true); }}>
-          <Text style={styles.scanButtonText}>Scan</Text>
+        <Pressable
+          style={[
+            styles.finishButton,
+            order?.finished && styles.finishButtonDone,
+            finishing && styles.finishButtonDisabled,
+          ]}
+          onPress={handleFinish}
+          disabled={finishing || order?.finished}
+        >
+          {finishing ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <Text style={styles.finishButtonText}>
+              {order?.finished ? "Finished" : "Finish"}
+            </Text>
+          )}
         </Pressable>
       </View>
 
@@ -287,8 +353,15 @@ export default function OrderDetail() {
         </View>
       ) : order ? (
         <>
-          <View style={[styles.progressBanner, allDone && styles.progressBannerDone]}>
-            <Text style={[styles.progressText, allDone && styles.progressTextDone]}>
+          <View
+            style={[
+              styles.progressBanner,
+              allDone && styles.progressBannerDone,
+            ]}
+          >
+            <Text
+              style={[styles.progressText, allDone && styles.progressTextDone]}
+            >
               {allDone
                 ? "✓ All items picked!"
                 : `${completedLines} of ${lines.length} items complete`}
@@ -309,21 +382,13 @@ export default function OrderDetail() {
               <Text style={styles.finishError}>{finishError}</Text>
             )}
             <Pressable
-              style={[
-                styles.finishButton,
-                order.finished && styles.finishButtonDone,
-                finishing && styles.finishButtonDisabled,
-              ]}
-              onPress={handleFinish}
-              disabled={finishing || order.finished}
+              style={styles.scanButton}
+              onPress={() => {
+                processingRef.current = false;
+                setScannerVisible(true);
+              }}
             >
-              {finishing ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.finishButtonText}>
-                  {order.finished ? "Order finished" : "Finish order"}
-                </Text>
-              )}
+              <Text style={styles.scanButtonText}>Scan</Text>
             </Pressable>
           </View>
         </>
@@ -342,14 +407,21 @@ export default function OrderDetail() {
         visible={pendingBarcode !== null}
         animationType="slide"
         transparent
-        onRequestClose={() => { setPendingBarcode(null); setAssignError(""); }}
+        onRequestClose={() => {
+          setPendingBarcode(null);
+          setAssignError("");
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <Text style={styles.modalTitle}>Unknown barcode</Text>
             <Text style={styles.modalBarcode}>{pendingBarcode}</Text>
-            <Text style={styles.modalSubtitle}>Which product does this represent?</Text>
-        {!!assignError && <Text style={styles.assignError}>{assignError}</Text>}
+            <Text style={styles.modalSubtitle}>
+              Which product does this represent?
+            </Text>
+            {!!assignError && (
+              <Text style={styles.assignError}>{assignError}</Text>
+            )}
 
             <FlatList
               data={assignableLines}
@@ -360,13 +432,18 @@ export default function OrderDetail() {
               style={styles.assignList}
               contentContainerStyle={{ gap: 8 }}
               ListEmptyComponent={
-                <Text style={styles.assignEmptyText}>All products have already been scanned.</Text>
+                <Text style={styles.assignEmptyText}>
+                  All products have already been scanned.
+                </Text>
               }
             />
 
             <Pressable
               style={styles.cancelButton}
-              onPress={() => { setPendingBarcode(null); setAssignError(""); }}
+              onPress={() => {
+                setPendingBarcode(null);
+                setAssignError("");
+              }}
               disabled={assigning}
             >
               {assigning ? (
@@ -391,15 +468,24 @@ export default function OrderDetail() {
             <Text style={styles.modalTitle}>
               {manualEntry?.line.description || manualEntry?.line.item_code}
             </Text>
-            <Text style={styles.modalBarcode}>{manualEntry?.line.item_code}</Text>
+            <Text style={styles.modalBarcode}>
+              {manualEntry?.line.item_code}
+            </Text>
             <Text style={styles.modalSubtitle}>
               Required: {manualEntry?.line.quantity} {manualEntry?.line.unit}
             </Text>
 
             <View style={styles.counterRow}>
               <Pressable
-                style={[styles.counterBtn, (manualEntry?.count ?? 0) <= 0 && styles.counterBtnDisabled]}
-                onPress={() => setManualEntry((e) => e && { ...e, count: Math.max(0, e.count - 1) })}
+                style={[
+                  styles.counterBtn,
+                  (manualEntry?.count ?? 0) <= 0 && styles.counterBtnDisabled,
+                ]}
+                onPress={() =>
+                  setManualEntry(
+                    (e) => e && { ...e, count: Math.max(0, e.count - 1) },
+                  )
+                }
                 disabled={(manualEntry?.count ?? 0) <= 0}
               >
                 <Text style={styles.counterBtnText}>−</Text>
@@ -410,14 +496,22 @@ export default function OrderDetail() {
               <Pressable
                 style={[
                   styles.counterBtn,
-                  (manualEntry?.count ?? 0) >= (manualEntry?.line.quantity ?? 0) && styles.counterBtnDisabled,
+                  (manualEntry?.count ?? 0) >=
+                    (manualEntry?.line.quantity ?? 0) &&
+                    styles.counterBtnDisabled,
                 ]}
                 onPress={() =>
-                  setManualEntry((e) =>
-                    e && { ...e, count: Math.min(e.line.quantity, e.count + 1) }
+                  setManualEntry(
+                    (e) =>
+                      e && {
+                        ...e,
+                        count: Math.min(e.line.quantity, e.count + 1),
+                      },
                   )
                 }
-                disabled={(manualEntry?.count ?? 0) >= (manualEntry?.line.quantity ?? 0)}
+                disabled={
+                  (manualEntry?.count ?? 0) >= (manualEntry?.line.quantity ?? 0)
+                }
               >
                 <Text style={styles.counterBtnText}>+</Text>
               </Pressable>
@@ -427,7 +521,11 @@ export default function OrderDetail() {
               style={styles.doneButton}
               onPress={() => {
                 if (manualEntry) {
-                  setItemPicked(invoiceNumber, manualEntry.line.item_code, manualEntry.count);
+                  setItemPicked(
+                    invoiceNumber,
+                    manualEntry.line.item_code,
+                    manualEntry.count,
+                  );
                 }
                 setManualEntry(null);
               }}
@@ -440,8 +538,16 @@ export default function OrderDetail() {
               onPress={() => {
                 if (manualEntry) {
                   const missing = manualEntry.line.quantity - manualEntry.count;
-                  setItemPicked(invoiceNumber, manualEntry.line.item_code, manualEntry.count);
-                  setItemMissing(invoiceNumber, manualEntry.line.item_code, missing > 0 ? missing : 0);
+                  setItemPicked(
+                    invoiceNumber,
+                    manualEntry.line.item_code,
+                    manualEntry.count,
+                  );
+                  setItemMissing(
+                    invoiceNumber,
+                    manualEntry.line.item_code,
+                    missing > 0 ? missing : 0,
+                  );
                 }
                 setManualEntry(null);
               }}
@@ -449,7 +555,10 @@ export default function OrderDetail() {
               <Text style={styles.missingButtonText}>Rest does not exist</Text>
             </Pressable>
 
-            <Pressable style={styles.cancelButton} onPress={() => setManualEntry(null)}>
+            <Pressable
+              style={styles.cancelButton}
+              onPress={() => setManualEntry(null)}
+            >
               <Text style={styles.cancelText}>Cancel</Text>
             </Pressable>
           </View>
@@ -469,15 +578,14 @@ export default function OrderDetail() {
             <Text style={styles.warnTitle}>Already fully picked</Text>
             {overpackWarning && (
               <>
-                <Text style={styles.warnProduct}>
-                  {overpackWarning.name}
-                </Text>
+                <Text style={styles.warnProduct}>{overpackWarning.name}</Text>
                 <Text style={styles.warnBody}>
                   You've already scanned{" "}
                   <Text style={styles.warnBold}>
-                    {overpackWarning.picked} of {overpackWarning.quantity} {overpackWarning.unit}
-                  </Text>
-                  {" "}for this item.{"\n"}Don't add more to the order.
+                    {overpackWarning.picked} of {overpackWarning.quantity}{" "}
+                    {overpackWarning.unit}
+                  </Text>{" "}
+                  for this item.{"\n"}Don't add more to the order.
                 </Text>
               </>
             )}
@@ -490,6 +598,42 @@ export default function OrderDetail() {
           </View>
         </View>
       </Modal>
+      {/* Wrong order — product known but not in this order */}
+      <Modal
+        visible={wrongOrderProduct !== null}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setWrongOrderProduct(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.warnSheet}>
+            <Text style={styles.warnIcon}>⚠️</Text>
+            <Text style={styles.warnTitle}>Wrong order</Text>
+            {wrongOrderProduct && (() => {
+              const name = products.find((p) => p.product_id === wrongOrderProduct.productId)?.name
+                || wrongOrderProduct.productId;
+              return (
+                <>
+                  <Text style={styles.warnProduct}>{name}</Text>
+                  <Text style={styles.warnBody}>
+                    This product is registered in the system but is{" "}
+                    <Text style={styles.warnBold}>not part of this order</Text>.
+                  </Text>
+                </>
+              );
+            })()}
+            <Pressable style={styles.warnButton} onPress={() => setWrongOrderProduct(null)}>
+              <Text style={styles.warnButtonText}>Got it</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {!!toastMessage && (
+        <Animated.View style={[styles.toast, { opacity: toastOpacity }]} pointerEvents="none">
+          <Text style={styles.toastText}>{toastMessage}</Text>
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 }
@@ -523,14 +667,14 @@ const styles = StyleSheet.create({
   },
   scanButton: {
     backgroundColor: "#208AEF",
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 8,
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: "center",
   },
   scanButtonText: {
     color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: "700",
   },
   centered: {
     flex: 1,
@@ -551,9 +695,9 @@ const styles = StyleSheet.create({
   },
   finishButton: {
     backgroundColor: "#208AEF",
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
   },
   finishButtonDone: {
     backgroundColor: "#27AE60",
@@ -563,8 +707,8 @@ const styles = StyleSheet.create({
   },
   finishButtonText: {
     color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 14,
+    fontWeight: "600",
   },
   finishError: {
     color: "#C0392B",
@@ -881,5 +1025,19 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "700",
+  },
+  toast: {
+    position: "absolute",
+    bottom: 90,
+    alignSelf: "center",
+    backgroundColor: "rgba(0,0,0,0.75)",
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  toastText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });
