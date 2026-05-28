@@ -107,6 +107,7 @@ export default function ProductsTab() {
         <Text style={styles.productMeta}>
           {item.product_id}
           {item.category ? ` · ${item.category}` : ""}
+          {item.total_quantity ? ` | status: ${item.total_quantity}` : ""}
         </Text>
       </View>
       <Pressable

@@ -19,7 +19,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-type ScannedItem = BarcodeMapping & { productName: string; category: string };
+type ScannedItem = BarcodeMapping & {
+  productName: string;
+  category: string;
+  total_quantity: number;
+};
 
 export default function ScannedTab() {
   const user = useStore((s) => s.user);
@@ -66,6 +70,7 @@ export default function ScannedTab() {
           ...b,
           productName: product?.name || b.product_id,
           category: product?.category || "",
+          total_quantity: product?.total_quantity || 0,
         };
       })
       .filter((item) => {
@@ -76,7 +81,11 @@ export default function ScannedTab() {
           item.barcode.toLowerCase().includes(q)
         );
       })
-      .sort((a, b) => a.productName.localeCompare(b.productName, undefined, { sensitivity: "base" }));
+      .sort((a, b) =>
+        a.productName.localeCompare(b.productName, undefined, {
+          sensitivity: "base",
+        }),
+      );
   }, [barcodes, products, query]);
 
   const handleScanned = async (data: string) => {
@@ -99,7 +108,9 @@ export default function ScannedTab() {
       <View style={styles.cardInfo}>
         <Text style={styles.productName}>{item.productName}</Text>
         <Text style={styles.productMeta}>
-          {item.product_id}{item.category ? ` · ${item.category}` : ""}
+          {item.product_id}
+          {item.category ? ` · ${item.category}` : ""}
+          {item.total_quantity ? ` | status: ${item.total_quantity}` : ""}
         </Text>
         <Text style={styles.barcodeValue}>{item.barcode}</Text>
       </View>
@@ -157,14 +168,19 @@ export default function ScannedTab() {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={() => { setRefreshing(true); load(true); }}
+              onRefresh={() => {
+                setRefreshing(true);
+                load(true);
+              }}
               tintColor="#208AEF"
             />
           }
           ListEmptyComponent={
             <View style={styles.centered}>
               <Text style={styles.emptyText}>
-                {query ? "No results match your search." : "No barcodes registered yet."}
+                {query
+                  ? "No results match your search."
+                  : "No barcodes registered yet."}
               </Text>
             </View>
           }
