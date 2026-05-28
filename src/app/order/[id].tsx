@@ -48,7 +48,6 @@ export default function OrderDetail() {
   const [finishError, setFinishError] = useState("");
   const [toastMessage, setToastMessage] = useState("");
   const toastOpacity = useRef(new Animated.Value(0)).current;
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [manualEntry, setManualEntry] = useState<{
     line: OrderLine;
@@ -91,26 +90,6 @@ export default function OrderDetail() {
       .catch(() => {});
   }, []);
 
-  const showToast = (message: string) => {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToastMessage(message);
-    toastOpacity.setValue(0);
-    Animated.sequence([
-      Animated.timing(toastOpacity, {
-        toValue: 1,
-        duration: 80,
-        useNativeDriver: true,
-      }),
-      Animated.delay(3000),
-      Animated.timing(toastOpacity, {
-        toValue: 0,
-        duration: 120,
-        useNativeDriver: true,
-      }),
-    ]).start();
-    toastTimer.current = setTimeout(() => setToastMessage(""), 620);
-  };
-
   const pickItem = (line: OrderLine) => {
     const current = pickedCounts[line.item_code] ?? 0;
     if (current >= line.quantity) {
@@ -125,12 +104,6 @@ export default function OrderDetail() {
     }
     const next = current + 1;
     setItemPicked(invoiceNumber, line.item_code, next);
-    setScanFeedback(
-      `✓ ${line.description || line.item_code}   ${next} / ${line.quantity} ${line.unit}`,
-    );
-    showToast(
-      `✓ ${line.description || line.item_code}  ${next} / ${line.quantity} ${line.unit}`,
-    );
   };
 
   const handleScanned = (data: string) => {
