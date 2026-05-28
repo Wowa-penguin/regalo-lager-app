@@ -34,11 +34,13 @@ export default function BarcodeScanner({
   const [zoom, setZoom] = useState(0);
   const scanLineY = useRef(new Animated.Value(0)).current;
   const lastScanRef = useRef<{ code: string; time: number } | null>(null);
+  const hasScannedRef = useRef(false);
 
   useEffect(() => {
     if (!visible) {
       scanLineY.setValue(0);
       lastScanRef.current = null;
+      hasScannedRef.current = false;
       setTorch(false);
       setZoom(0);
       return;
@@ -63,10 +65,12 @@ export default function BarcodeScanner({
   }, [visible]);
 
   const handleBarcode = ({ data }: { data: string }) => {
+    if (hasScannedRef.current) return;
     const now = Date.now();
     const last = lastScanRef.current;
     if (last && last.code === data && now - last.time < DEBOUNCE_MS) return;
     lastScanRef.current = { code: data, time: now };
+    hasScannedRef.current = true;
     onScanned(data);
   };
 

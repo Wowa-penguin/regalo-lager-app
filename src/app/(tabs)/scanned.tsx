@@ -37,7 +37,6 @@ export default function ScannedTab() {
   const [query, setQuery] = useState("");
 
   const [editingItem, setEditingItem] = useState<ScannedItem | null>(null);
-  const [scanFeedback, setScanFeedback] = useState("");
   const [saveError, setSaveError] = useState("");
   const processingRef = useRef(false);
 
@@ -92,11 +91,11 @@ export default function ScannedTab() {
     if (processingRef.current || !editingItem) return;
     processingRef.current = true;
     setSaveError("");
+    const item = editingItem;
+    setEditingItem(null);
     try {
-      const updated = await updateBarcode(editingItem.id, { barcode: data });
-      updateBarcodeInStore(editingItem.id, { barcode: updated.barcode });
-      setScanFeedback(`✓ Barcode updated for ${editingItem.productName}`);
-      setEditingItem(null);
+      const updated = await updateBarcode(item.id, { barcode: data });
+      updateBarcodeInStore(item.id, { barcode: updated.barcode });
     } catch (e: unknown) {
       setSaveError(e instanceof Error ? e.message : "Failed to update barcode");
       processingRef.current = false;
@@ -118,7 +117,6 @@ export default function ScannedTab() {
         style={styles.editButton}
         onPress={() => {
           processingRef.current = false;
-          setScanFeedback("");
           setSaveError("");
           setEditingItem(item);
         }}
@@ -197,7 +195,6 @@ export default function ScannedTab() {
         visible={editingItem !== null}
         onClose={() => setEditingItem(null)}
         onScanned={handleScanned}
-        feedback={scanFeedback}
       />
     </SafeAreaView>
   );

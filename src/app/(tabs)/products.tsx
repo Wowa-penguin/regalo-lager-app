@@ -31,7 +31,6 @@ export default function ProductsTab() {
   const [selectedCategory, setSelectedCategory] = useState("");
 
   const [scanningProduct, setScanningProduct] = useState<Product | null>(null);
-  const [scanFeedback, setScanFeedback] = useState("");
   const [saveError, setSaveError] = useState("");
   const processingRef = useRef(false);
 
@@ -87,13 +86,11 @@ export default function ProductsTab() {
     if (processingRef.current || !scanningProduct) return;
     processingRef.current = true;
     setSaveError("");
+    const product = scanningProduct;
+    setScanningProduct(null);
     try {
-      const mapping = await createBarcode(data, scanningProduct.product_id);
+      const mapping = await createBarcode(data, product.product_id);
       addBarcode(mapping);
-      setScanFeedback(
-        `✓ Saved barcode for ${scanningProduct.name || scanningProduct.product_id}`,
-      );
-      setScanningProduct(null);
     } catch (e: unknown) {
       setSaveError(e instanceof Error ? e.message : "Failed to save");
       processingRef.current = false;
@@ -114,7 +111,6 @@ export default function ProductsTab() {
         style={styles.scanButton}
         onPress={() => {
           processingRef.current = false;
-          setScanFeedback("");
           setSaveError("");
           setScanningProduct(item);
         }}
@@ -235,7 +231,6 @@ export default function ProductsTab() {
         visible={scanningProduct !== null}
         onClose={() => setScanningProduct(null)}
         onScanned={handleScanned}
-        feedback={scanFeedback}
       />
     </SafeAreaView>
   );

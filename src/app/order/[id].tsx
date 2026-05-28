@@ -12,7 +12,6 @@ import * as WebBrowser from "expo-web-browser";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Animated,
   FlatList,
   Modal,
   Pressable,
@@ -34,7 +33,6 @@ export default function OrderDetail() {
   const [error, setError] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [scannerVisible, setScannerVisible] = useState(false);
-  const [scanFeedback, setScanFeedback] = useState("");
   const processingRef = useRef(false);
 
   const [pendingBarcode, setPendingBarcode] = useState<string | null>(null);
@@ -46,8 +44,6 @@ export default function OrderDetail() {
   } | null>(null);
   const [finishing, setFinishing] = useState(false);
   const [finishError, setFinishError] = useState("");
-  const [toastMessage, setToastMessage] = useState("");
-  const toastOpacity = useRef(new Animated.Value(0)).current;
 
   const [manualEntry, setManualEntry] = useState<{
     line: OrderLine;
@@ -164,8 +160,12 @@ export default function OrderDetail() {
     }
   };
 
+  const productMap = useMemo(
+    () => new Map(products.map((p) => [p.product_id, p])),
+    [products],
+  );
+
   const lines = useMemo(() => {
-    const productMap = new Map(products.map((p) => [p.product_id, p]));
     return [...(order?.lines ?? [])].sort((a, b) => {
       const doneA = (pickedCounts[a.item_code] ?? 0) >= a.quantity ? 1 : 0;
       const doneB = (pickedCounts[b.item_code] ?? 0) >= b.quantity ? 1 : 0;
@@ -182,7 +182,7 @@ export default function OrderDetail() {
       const nameB = pB?.name || b.description || b.item_code;
       return nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
     });
-  }, [order?.lines, products, pickedCounts]);
+  }, [order?.lines, productMap, pickedCounts]);
 
   const mappedProductIds = useMemo(
     () => new Set(barcodes.map((b) => b.product_id)),
@@ -253,9 +253,7 @@ export default function OrderDetail() {
             </Text>
 
             {(() => {
-              const qty = products.find(
-                (p) => p.product_id === item.item_code,
-              )?.total_quantity;
+              const qty = productMap.get(item.item_code)?.total_quantity;
               return qty != null ? (
                 <Text style={styles.itemCode}>
                   {item.item_code} - Stock: {qty}
@@ -299,7 +297,7 @@ export default function OrderDetail() {
   };
 
   const renderAssignItem = ({ item }: { item: OrderLine }) => {
-    const product = products.find((p) => p.product_id === item.item_code);
+    const product = productMap.get(item.item_code);
     return (
       <Pressable
         style={styles.assignCard}
@@ -401,7 +399,6 @@ export default function OrderDetail() {
         visible={scannerVisible}
         onClose={() => setScannerVisible(false)}
         onScanned={handleScanned}
-        feedback={scanFeedback}
       />
 
       {/* Unknown barcode — assign to product */}
@@ -640,14 +637,6 @@ export default function OrderDetail() {
         </View>
       </Modal>
 
-      {!!toastMessage && (
-        <Animated.View
-          style={[styles.toast, { opacity: toastOpacity }]}
-          pointerEvents="none"
-        >
-          <Text style={styles.toastText}>{toastMessage}</Text>
-        </Animated.View>
-      )}
     </SafeAreaView>
   );
 }
