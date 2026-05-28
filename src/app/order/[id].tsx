@@ -101,7 +101,7 @@ export default function OrderDetail() {
         duration: 80,
         useNativeDriver: true,
       }),
-      Animated.delay(1000),
+      Animated.delay(3000),
       Animated.timing(toastOpacity, {
         toValue: 0,
         duration: 120,
@@ -278,7 +278,19 @@ export default function OrderDetail() {
             >
               {item.description || item.item_code}
             </Text>
-            <Text style={styles.itemCode}>{item.item_code}</Text>
+
+            {(() => {
+              const qty = products.find(
+                (p) => p.product_id === item.item_code,
+              )?.total_quantity;
+              return qty != null ? (
+                <Text style={styles.itemCode}>
+                  {item.item_code} - Stock: {qty}
+                </Text>
+              ) : (
+                <Text style={styles.itemCode}>{item.item_code}</Text>
+              );
+            })()}
           </View>
         </View>
         <View style={styles.lineRight}>
