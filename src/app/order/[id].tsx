@@ -367,6 +367,11 @@ export default function OrderDetail() {
                 : `${completedLines} of ${lines.length} items complete`}
             </Text>
           </View>
+          {!!order.description_text_2 && (
+            <View style={styles.noteBanner}>
+              <Text style={styles.noteText}>{order.description_text_2}</Text>
+            </View>
+          )}
 
           <FlatList
             data={lines}
@@ -636,7 +641,6 @@ export default function OrderDetail() {
           </View>
         </View>
       </Modal>
-
     </SafeAreaView>
   );
 }
@@ -1042,5 +1046,17 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 14,
     fontWeight: "600",
+  },
+  noteBanner: {
+    backgroundColor: "#FFFBE6",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#FFE58F",
+  },
+  noteText: {
+    fontSize: 13,
+    color: "#7C5800",
+    fontWeight: "500",
   },
 });
