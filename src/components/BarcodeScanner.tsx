@@ -46,6 +46,9 @@ export default function BarcodeScanner({
       return;
     }
 
+    lastScanRef.current = null;
+    hasScannedRef.current = false;
+
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(scanLineY, {
