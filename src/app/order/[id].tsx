@@ -291,6 +291,9 @@ export default function OrderDetail() {
           >
             <Text style={styles.linkIcon}>↗</Text>
           </Pressable>
+          <Text style={styles.checkmark}>
+            {mappedProductIds.has(item.item_code) ? "✅" : "❌"}
+          </Text>
         </View>
       </View>
     );
@@ -1058,5 +1061,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#7C5800",
     fontWeight: "500",
+  },
+  checkmark: {
+    fontSize: 8,
   },
 });
