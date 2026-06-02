@@ -100,6 +100,9 @@ export default function OrderDetail() {
     }
     const next = current + 1;
     setItemPicked(invoiceNumber, line.item_code, next);
+    if ((missingCounts[line.item_code] ?? 0) > 0) {
+      setItemMissing(invoiceNumber, line.item_code, Math.max(0, line.quantity - next));
+    }
   };
 
   const handleScanned = (data: string) => {
@@ -166,23 +169,27 @@ export default function OrderDetail() {
   );
 
   const lines = useMemo(() => {
+    const priority = (line: OrderLine) => {
+      const picked = pickedCounts[line.item_code] ?? 0;
+      const missing = missingCounts[line.item_code] ?? 0;
+      if (picked >= line.quantity) return 1;
+      if (missing > 0 && picked === 0) return 3;
+      if (missing > 0 && picked > 0) return 2;
+      return 0;
+    };
     return [...(order?.lines ?? [])].sort((a, b) => {
-      const doneA = (pickedCounts[a.item_code] ?? 0) >= a.quantity ? 1 : 0;
-      const doneB = (pickedCounts[b.item_code] ?? 0) >= b.quantity ? 1 : 0;
-      if (doneA !== doneB) return doneA - doneB;
+      const pa = priority(a);
+      const pb = priority(b);
+      if (pa !== pb) return pa - pb;
       const pA = productMap.get(a.item_code);
       const pB = productMap.get(b.item_code);
-      const byCategory = (pA?.category ?? "").localeCompare(
-        pB?.category ?? "",
-        undefined,
-        { sensitivity: "base" },
-      );
+      const byCategory = (pA?.category ?? "").localeCompare(pB?.category ?? "", undefined, { sensitivity: "base" });
       if (byCategory !== 0) return byCategory;
       const nameA = pA?.name || a.description || a.item_code;
       const nameB = pB?.name || b.description || b.item_code;
       return nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
     });
-  }, [order?.lines, productMap, pickedCounts]);
+  }, [order?.lines, productMap, pickedCounts, missingCounts]);
 
   const mappedProductIds = useMemo(
     () => new Set(barcodes.map((b) => b.product_id)),
@@ -206,15 +213,20 @@ export default function OrderDetail() {
 
   const renderLine = ({ item }: { item: OrderLine }) => {
     const picked = pickedCounts[item.item_code] ?? 0;
+    const missing = missingCounts[item.item_code] ?? 0;
     const isComplete = picked >= item.quantity;
     const isPartial = picked > 0 && !isComplete;
+    const isMissingAll = missing > 0 && picked === 0;
+    const isMissingPartial = missing > 0 && picked > 0 && !isComplete;
 
     return (
       <View
         style={[
           styles.lineCard,
-          isComplete && styles.lineCardComplete,
           isPartial && styles.lineCardPartial,
+          isMissingPartial && styles.lineCardMissingPartial,
+          isMissingAll && styles.lineCardMissingAll,
+          isComplete && styles.lineCardComplete,
         ]}
       >
         <View style={styles.lineLeft}>
@@ -274,11 +286,9 @@ export default function OrderDetail() {
           >
             {picked}/{item.quantity} {item.unit}
           </Text>
-          {(missingCounts[item.item_code] ?? 0) > 0 && (
+          {missing > 0 && (
             <View style={styles.missingBadge}>
-              <Text style={styles.missingBadgeText}>
-                {missingCounts[item.item_code]} missing
-              </Text>
+              <Text style={styles.missingBadgeText}>{missing} missing</Text>
             </View>
           )}
           <Pressable
@@ -533,6 +543,13 @@ export default function OrderDetail() {
                     manualEntry.line.item_code,
                     manualEntry.count,
                   );
+                  if ((missingCounts[manualEntry.line.item_code] ?? 0) > 0) {
+                    setItemMissing(
+                      invoiceNumber,
+                      manualEntry.line.item_code,
+                      Math.max(0, manualEntry.line.quantity - manualEntry.count),
+                    );
+                  }
                 }
                 setManualEntry(null);
               }}
@@ -766,6 +783,14 @@ const styles = StyleSheet.create({
   lineCardPartial: {
     backgroundColor: "#EBF5FF",
     borderColor: "#BEE3F8",
+  },
+  lineCardMissingPartial: {
+    backgroundColor: "#FFFDE7",
+    borderColor: "#FFE082",
+  },
+  lineCardMissingAll: {
+    backgroundColor: "#FFF0F0",
+    borderColor: "#F5C6CB",
   },
   lineLeft: {
     flexDirection: "row",
