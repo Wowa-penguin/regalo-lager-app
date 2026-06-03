@@ -2,7 +2,7 @@ import { createBarcode } from "@/api/createBarcode";
 import { fetchOrder } from "@/api/fetchOrder";
 import { fetchProducts } from "@/api/fetchProducts";
 import { finishOrder } from "@/api/finishOrder";
-import BarcodeScanner from "@/components/BarcodeScanner";
+import { useZebraScanner } from "@/hooks/useZebraScanner";
 import useBarcodeStore from "@/store/useBarcodeStore";
 import useStore from "@/store/useStore";
 import { Order, OrderLine } from "@/types/order";
@@ -32,7 +32,6 @@ export default function OrderDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
-  const [scannerVisible, setScannerVisible] = useState(false);
   const processingRef = useRef(false);
 
   const [pendingBarcode, setPendingBarcode] = useState<string | null>(null);
@@ -119,7 +118,6 @@ export default function OrderDetail() {
     const line = order.lines.find((l) => l.item_code === resolvedId);
 
     if (!line) {
-      setScannerVisible(false);
       if (knownProductId !== null) {
         setWrongOrderProduct({ productId: knownProductId, barcode: data });
       } else {
@@ -128,9 +126,11 @@ export default function OrderDetail() {
       return;
     }
 
-    setScannerVisible(false);
     pickItem(line);
+    setTimeout(() => { processingRef.current = false; }, 300);
   };
+
+  useZebraScanner(!!order && !order.finished, handleScanned);
 
   const handleAssign = async (line: OrderLine) => {
     if (!pendingBarcode) return;
@@ -141,6 +141,7 @@ export default function OrderDetail() {
       addBarcode(mapping);
       pickItem(line);
       setPendingBarcode(null);
+      processingRef.current = false;
     } catch (e: unknown) {
       setAssignError(
         e instanceof Error ? e.message : "Failed to save — check connection",
@@ -379,6 +380,9 @@ export default function OrderDetail() {
                 ? "✓ All items picked!"
                 : `${completedLines} of ${lines.length} items complete`}
             </Text>
+            {!allDone && (
+              <Text style={styles.scannerBadge}>⊙ Scanner active</Text>
+            )}
           </View>
           {!!order.description_text_2 && (
             <View style={styles.noteBanner}>
@@ -395,29 +399,13 @@ export default function OrderDetail() {
             contentContainerStyle={styles.list}
           />
 
-          <View style={styles.footer}>
-            {!!finishError && (
+          {!!finishError && (
+            <View style={styles.footer}>
               <Text style={styles.finishError}>{finishError}</Text>
-            )}
-            <Pressable
-              style={styles.scanButton}
-              onPress={() => {
-                processingRef.current = false;
-                setScannerVisible(true);
-              }}
-            >
-              <Text style={styles.scanButtonText}>Scan</Text>
-            </Pressable>
-          </View>
+            </View>
+          )}
         </>
       ) : null}
-
-      {/* Barcode scanner */}
-      <BarcodeScanner
-        visible={scannerVisible}
-        onClose={() => setScannerVisible(false)}
-        onScanned={handleScanned}
-      />
 
       {/* Unknown barcode — assign to product */}
       <Modal
@@ -427,6 +415,7 @@ export default function OrderDetail() {
         onRequestClose={() => {
           setPendingBarcode(null);
           setAssignError("");
+          processingRef.current = false;
         }}
       >
         <View style={styles.modalOverlay}>
@@ -460,6 +449,7 @@ export default function OrderDetail() {
               onPress={() => {
                 setPendingBarcode(null);
                 setAssignError("");
+                processingRef.current = false;
               }}
               disabled={assigning}
             >
@@ -594,7 +584,7 @@ export default function OrderDetail() {
         visible={overpackWarning !== null}
         animationType="fade"
         transparent
-        onRequestClose={() => setOverpackWarning(null)}
+        onRequestClose={() => { setOverpackWarning(null); processingRef.current = false; }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.warnSheet}>
@@ -615,7 +605,7 @@ export default function OrderDetail() {
             )}
             <Pressable
               style={styles.warnButton}
-              onPress={() => setOverpackWarning(null)}
+              onPress={() => { setOverpackWarning(null); processingRef.current = false; }}
             >
               <Text style={styles.warnButtonText}>Got it</Text>
             </Pressable>
@@ -627,7 +617,7 @@ export default function OrderDetail() {
         visible={wrongOrderProduct !== null}
         animationType="fade"
         transparent
-        onRequestClose={() => setWrongOrderProduct(null)}
+        onRequestClose={() => { setWrongOrderProduct(null); processingRef.current = false; }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.warnSheet}>
@@ -654,7 +644,7 @@ export default function OrderDetail() {
               })()}
             <Pressable
               style={styles.warnButton}
-              onPress={() => setWrongOrderProduct(null)}
+              onPress={() => { setWrongOrderProduct(null); processingRef.current = false; }}
             >
               <Text style={styles.warnButtonText}>Got it</Text>
             </Pressable>
@@ -691,17 +681,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#1a1a1a",
     textAlign: "center",
-  },
-  scanButton: {
-    backgroundColor: "#208AEF",
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  scanButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
   },
   centered: {
     flex: 1,
@@ -761,6 +740,12 @@ const styles = StyleSheet.create({
   },
   progressTextDone: {
     color: "#27AE60",
+  },
+  scannerBadge: {
+    fontSize: 11,
+    color: "#27AE60",
+    textAlign: "center",
+    marginTop: 2,
   },
   list: {
     padding: 16,
