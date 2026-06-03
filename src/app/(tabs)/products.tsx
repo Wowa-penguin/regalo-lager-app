@@ -11,6 +11,7 @@ import {
   FlatList,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -142,43 +143,33 @@ export default function ProductsTab() {
       </View>
 
       {categories.length > 0 && (
-        <View style={styles.categoryRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.categoryRow}
+          contentContainerStyle={styles.categoryRowContent}
+          keyboardShouldPersistTaps="handled"
+        >
           <Pressable
-            style={[
-              styles.categoryChip,
-              !selectedCategory && styles.categoryChipActive,
-            ]}
+            style={[styles.categoryChip, !selectedCategory && styles.categoryChipActive]}
             onPress={() => setSelectedCategory("")}
           >
-            <Text
-              style={[
-                styles.categoryChipText,
-                !selectedCategory && styles.categoryChipTextActive,
-              ]}
-            >
+            <Text style={[styles.categoryChipText, !selectedCategory && styles.categoryChipTextActive]}>
               All
             </Text>
           </Pressable>
           {categories.map((cat) => (
             <Pressable
               key={cat}
-              style={[
-                styles.categoryChip,
-                selectedCategory === cat && styles.categoryChipActive,
-              ]}
+              style={[styles.categoryChip, selectedCategory === cat && styles.categoryChipActive]}
               onPress={() => setSelectedCategory((c) => (c === cat ? "" : cat))}
             >
-              <Text
-                style={[
-                  styles.categoryChipText,
-                  selectedCategory === cat && styles.categoryChipTextActive,
-                ]}
-              >
+              <Text style={[styles.categoryChipText, selectedCategory === cat && styles.categoryChipTextActive]}>
                 {cat}
               </Text>
             </Pressable>
           ))}
-        </View>
+        </ScrollView>
       )}
 
       {loading ? (
@@ -239,19 +230,20 @@ export default function ProductsTab() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F7F5F2",
+    backgroundColor: "#F2F0ED",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#E2DAD3",
+    backgroundColor: "#fff",
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "700",
     color: "#1a1a1a",
   },
@@ -264,40 +256,45 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: "#E2DAD3",
+    backgroundColor: "#fff",
   },
   searchInput: {
-    backgroundColor: "#fff",
+    backgroundColor: "#F7F5F2",
     borderWidth: 1,
     borderColor: "#E2DAD3",
     borderRadius: 10,
     paddingHorizontal: 14,
-    paddingVertical: 9,
-    fontSize: 15,
+    paddingVertical: 11,
+    fontSize: 16,
     color: "#1a1a1a",
   },
   categoryRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 8,
     borderBottomWidth: 1,
     borderBottomColor: "#E2DAD3",
+    backgroundColor: "#fff",
+  },
+  categoryRowContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
   },
   categoryChip: {
+    flexShrink: 0,
     borderWidth: 1,
     borderColor: "#E2DAD3",
     borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    backgroundColor: "#fff",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    backgroundColor: "#F7F5F2",
   },
   categoryChipActive: {
     borderColor: "#208AEF",
     backgroundColor: "#EBF4FF",
   },
   categoryChipText: {
-    fontSize: 13,
+    fontSize: 14,
     color: "#888",
     fontWeight: "500",
   },
@@ -317,15 +314,15 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   retryButton: {
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: "#208AEF",
-    paddingHorizontal: 20,
-    paddingVertical: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
     borderRadius: 8,
   },
   retryText: {
     color: "#208AEF",
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
   },
   emptyText: {
@@ -334,55 +331,56 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   list: {
-    padding: 16,
+    padding: 14,
     gap: 10,
     flexGrow: 1,
   },
   card: {
     backgroundColor: "#fff",
     borderRadius: 12,
-    padding: 14,
+    padding: 16,
     borderWidth: 1,
     borderColor: "#E2DAD3",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
+    elevation: 1,
   },
   cardInfo: {
     flex: 1,
-    gap: 3,
+    gap: 4,
   },
   productName: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "600",
     color: "#1a1a1a",
   },
   productMeta: {
-    fontSize: 12,
+    fontSize: 13,
     color: "#aaa",
   },
   scanButton: {
     backgroundColor: "#208AEF",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 11,
     borderRadius: 8,
   },
   scanButtonText: {
     color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: "700",
   },
   errorBanner: {
     backgroundColor: "#FDECEA",
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderTopWidth: 1,
     borderTopColor: "#F5C6CB",
   },
   errorBannerText: {
     color: "#C0392B",
-    fontSize: 13,
+    fontSize: 14,
     textAlign: "center",
   },
 });

@@ -419,7 +419,7 @@ export default function OrderDetail() {
         }}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
+          <SafeAreaView edges={["bottom"]} style={styles.modalSheet}>
             <Text style={styles.modalTitle}>Unknown barcode</Text>
             <Text style={styles.modalBarcode}>{pendingBarcode}</Text>
             <Text style={styles.modalSubtitle}>
@@ -459,7 +459,7 @@ export default function OrderDetail() {
                 <Text style={styles.cancelText}>Cancel</Text>
               )}
             </Pressable>
-          </View>
+          </SafeAreaView>
         </View>
       </Modal>
 
@@ -471,7 +471,7 @@ export default function OrderDetail() {
         onRequestClose={() => setManualEntry(null)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
+          <SafeAreaView edges={["bottom"]} style={styles.modalSheet}>
             <Text style={styles.modalTitle}>
               {manualEntry?.line.description || manualEntry?.line.item_code}
             </Text>
@@ -575,7 +575,7 @@ export default function OrderDetail() {
             >
               <Text style={styles.cancelText}>Cancel</Text>
             </Pressable>
-          </View>
+          </SafeAreaView>
         </View>
       </Modal>
 
@@ -586,7 +586,7 @@ export default function OrderDetail() {
         transparent
         onRequestClose={() => { setOverpackWarning(null); processingRef.current = false; }}
       >
-        <View style={styles.modalOverlay}>
+        <View style={styles.warnOverlay}>
           <View style={styles.warnSheet}>
             <Text style={styles.warnIcon}>⚠️</Text>
             <Text style={styles.warnTitle}>Already fully picked</Text>
@@ -619,7 +619,7 @@ export default function OrderDetail() {
         transparent
         onRequestClose={() => { setWrongOrderProduct(null); processingRef.current = false; }}
       >
-        <View style={styles.modalOverlay}>
+        <View style={styles.warnOverlay}>
           <View style={styles.warnSheet}>
             <Text style={styles.warnIcon}>⚠️</Text>
             <Text style={styles.warnTitle}>Wrong order</Text>
@@ -658,22 +658,24 @@ export default function OrderDetail() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F7F5F2",
+    backgroundColor: "#F2F0ED",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#E2DAD3",
+    backgroundColor: "#fff",
     gap: 12,
   },
   backText: {
-    fontSize: 16,
+    fontSize: 17,
     color: "#208AEF",
-    fontWeight: "500",
+    fontWeight: "600",
+    paddingVertical: 4,
   },
   headerTitle: {
     flex: 1,
@@ -697,12 +699,11 @@ const styles = StyleSheet.create({
     padding: 16,
     borderTopWidth: 1,
     borderTopColor: "#E2DAD3",
-    gap: 8,
   },
   finishButton: {
     backgroundColor: "#208AEF",
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
     borderRadius: 8,
   },
   finishButtonDone: {
@@ -713,8 +714,8 @@ const styles = StyleSheet.create({
   },
   finishButtonText: {
     color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: "700",
   },
   finishError: {
     color: "#C0392B",
@@ -733,8 +734,8 @@ const styles = StyleSheet.create({
     borderBottomColor: "#C3E6CB",
   },
   progressText: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: "700",
     color: "#208AEF",
     textAlign: "center",
   },
@@ -742,13 +743,13 @@ const styles = StyleSheet.create({
     color: "#27AE60",
   },
   scannerBadge: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#27AE60",
     textAlign: "center",
     marginTop: 2,
   },
   list: {
-    padding: 16,
+    padding: 14,
     gap: 10,
   },
   lineCard: {
@@ -760,6 +761,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    elevation: 1,
+    minHeight: 72,
   },
   lineCardComplete: {
     backgroundColor: "#F0FFF4",
@@ -784,9 +787,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statusRing: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 2,
     borderColor: "#D0D0D0",
     alignItems: "center",
@@ -801,7 +804,7 @@ const styles = StyleSheet.create({
     borderColor: "#208AEF",
   },
   statusIcon: {
-    fontSize: 13,
+    fontSize: 15,
     color: "#C0C0C0",
   },
   statusIconComplete: {
@@ -814,20 +817,20 @@ const styles = StyleSheet.create({
   },
   lineInfo: {
     flex: 1,
-    gap: 2,
+    gap: 3,
   },
   description: {
     fontSize: 16,
     fontWeight: "600",
     color: "#1a1a1a",
+    lineHeight: 22,
   },
   descriptionComplete: {
     color: "#27AE60",
   },
   itemCode: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#aaa",
-    marginTop: 1,
   },
   lineRight: {
     alignItems: "flex-end",
@@ -835,8 +838,8 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   progress: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: "700",
     color: "#C0C0C0",
     flexShrink: 0,
   },
@@ -847,40 +850,47 @@ const styles = StyleSheet.create({
     color: "#208AEF",
   },
   linkIcon: {
-    fontSize: 14,
+    fontSize: 16,
     color: "#208AEF",
     fontWeight: "600",
+    paddingVertical: 4,
+    paddingHorizontal: 4,
   },
-
-  // Assign modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "flex-end",
+  },
+  warnOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingBottom: 80,
   },
   modalSheet: {
     backgroundColor: "#fff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     paddingTop: 24,
     paddingHorizontal: 20,
-    paddingBottom: 40,
-    maxHeight: "75%",
+    paddingBottom: 20,
+    maxHeight: "80%",
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
     color: "#1a1a1a",
     marginBottom: 4,
   },
   modalBarcode: {
-    fontSize: 13,
+    fontSize: 14,
     color: "#888",
     fontFamily: "monospace",
     marginBottom: 16,
   },
   modalSubtitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
     color: "#555",
     marginBottom: 12,
@@ -889,58 +899,58 @@ const styles = StyleSheet.create({
     flexGrow: 0,
   },
   assignEmptyText: {
-    fontSize: 14,
+    fontSize: 15,
     color: "#aaa",
     textAlign: "center",
-    paddingVertical: 16,
+    paddingVertical: 20,
   },
   assignError: {
     color: "#C0392B",
-    fontSize: 13,
+    fontSize: 14,
     textAlign: "center",
-    marginBottom: 4,
+    marginBottom: 6,
   },
   assignCard: {
     backgroundColor: "#F7F5F2",
-    borderRadius: 10,
-    padding: 14,
+    borderRadius: 12,
+    padding: 16,
     borderWidth: 1,
     borderColor: "#E2DAD3",
   },
   assignDescription: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "600",
     color: "#1a1a1a",
   },
   assignItemCode: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#aaa",
-    marginTop: 2,
+    marginTop: 3,
   },
   cancelButton: {
     marginTop: 16,
     alignItems: "center",
-    paddingVertical: 14,
-    borderRadius: 10,
+    paddingVertical: 16,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#E2DAD3",
   },
   cancelText: {
-    fontSize: 15,
+    fontSize: 16,
     color: "#888",
-    fontWeight: "500",
+    fontWeight: "600",
   },
   counterRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 28,
-    paddingVertical: 8,
+    gap: 32,
+    paddingVertical: 12,
   },
   counterBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: "#208AEF",
     alignItems: "center",
     justifyContent: "center",
@@ -950,83 +960,82 @@ const styles = StyleSheet.create({
   },
   counterBtnText: {
     color: "#fff",
-    fontSize: 26,
+    fontSize: 30,
     fontWeight: "600",
-    lineHeight: 30,
+    lineHeight: 34,
   },
   counterValue: {
-    fontSize: 48,
+    fontSize: 52,
     fontWeight: "700",
     color: "#1a1a1a",
-    minWidth: 64,
+    minWidth: 72,
     textAlign: "center",
   },
   doneButton: {
     backgroundColor: "#208AEF",
-    borderRadius: 10,
-    paddingVertical: 14,
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: "center",
     width: "100%",
     marginTop: 4,
   },
   doneButtonText: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "700",
   },
   missingButton: {
     borderWidth: 1.5,
     borderColor: "#C0392B",
-    borderRadius: 10,
-    paddingVertical: 13,
+    borderRadius: 12,
+    paddingVertical: 15,
     alignItems: "center",
     width: "100%",
   },
   missingButtonText: {
     color: "#C0392B",
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "600",
   },
   missingBadge: {
     backgroundColor: "#FDECEA",
     borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
     alignSelf: "flex-end",
   },
   missingBadgeText: {
     color: "#C0392B",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
   warnSheet: {
     backgroundColor: "#fff",
     borderRadius: 20,
     padding: 28,
-    marginHorizontal: 32,
     alignItems: "center",
     gap: 10,
   },
   warnIcon: {
-    fontSize: 40,
+    fontSize: 44,
   },
   warnTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
     color: "#1a1a1a",
     textAlign: "center",
   },
   warnProduct: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "600",
     color: "#555",
     textAlign: "center",
   },
   warnBody: {
-    fontSize: 14,
+    fontSize: 15,
     color: "#666",
     textAlign: "center",
-    lineHeight: 21,
+    lineHeight: 22,
   },
   warnBold: {
     fontWeight: "700",
@@ -1035,30 +1044,16 @@ const styles = StyleSheet.create({
   warnButton: {
     marginTop: 8,
     backgroundColor: "#C0392B",
-    borderRadius: 10,
+    borderRadius: 12,
     paddingHorizontal: 36,
-    paddingVertical: 13,
+    paddingVertical: 15,
     width: "100%",
     alignItems: "center",
   },
   warnButtonText: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "700",
-  },
-  toast: {
-    position: "absolute",
-    bottom: 90,
-    alignSelf: "center",
-    backgroundColor: "rgba(0,0,0,0.75)",
-    borderRadius: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  toastText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
   },
   noteBanner: {
     backgroundColor: "#FFFBE6",
@@ -1068,11 +1063,11 @@ const styles = StyleSheet.create({
     borderBottomColor: "#FFE58F",
   },
   noteText: {
-    fontSize: 13,
+    fontSize: 14,
     color: "#7C5800",
     fontWeight: "500",
   },
   checkmark: {
-    fontSize: 8,
+    fontSize: 10,
   },
 });

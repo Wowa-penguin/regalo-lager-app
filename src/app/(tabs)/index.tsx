@@ -1,4 +1,3 @@
-import { clearOrders } from "@/api/clearOrders";
 import { fetchOrders } from "@/api/fetchOrders";
 import useStore, { clearSession } from "@/store/useStore";
 import { Order } from "@/types/order";
@@ -7,7 +6,6 @@ import { Redirect, router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -21,12 +19,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 export default function Index() {
   const user = useStore((s) => s.user);
   const logout = useStore((s) => s.logout);
-  const clearOrderProgress = useStore((s) => s.clearOrderProgress);
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [clearing, setClearing] = useState(false);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [zipFilter, setZipFilter] = useState("");
@@ -62,58 +58,16 @@ export default function Index() {
     router.replace("/login");
   };
 
-  const handleRefresh = () => {
-    setRefreshing(true);
-    loadOrders(true);
-  };
-
-  const handleClear = () => {
-    Alert.alert(
-      "Clear all orders",
-      "This will remove all orders from the server and reset all picking progress. Are you sure?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Clear",
-          style: "destructive",
-          onPress: async () => {
-            setClearing(true);
-            try {
-              await clearOrders();
-              clearOrderProgress();
-              setOrders([]);
-            } catch (e: unknown) {
-              Alert.alert(
-                "Error",
-                e instanceof Error ? e.message : "Failed to clear orders",
-              );
-            } finally {
-              setClearing(false);
-            }
-          },
-        },
-      ],
-    );
-  };
-
-  const activeFilterCount = [
-    zipFilter,
-    minPrice,
-    maxPrice,
-    selectedStatus,
-  ].filter(Boolean).length;
+  const activeFilterCount = [zipFilter, minPrice, maxPrice, selectedStatus].filter(Boolean).length;
 
   const statuses = useMemo(
-    () =>
-      Array.from(new Set(orders.map((o) => o.hstatus).filter(Boolean))).sort(),
+    () => Array.from(new Set(orders.map((o) => o.hstatus).filter(Boolean))).sort(),
     [orders],
   );
 
   const filteredOrders = useMemo(() => {
     const sorted = [...orders].sort((a, b) =>
-      a.customer_name.localeCompare(b.customer_name, undefined, {
-        sensitivity: "base",
-      }),
+      a.customer_name.localeCompare(b.customer_name, undefined, { sensitivity: "base" }),
     );
     const q = query.trim().toLowerCase();
     const zip = zipFilter.trim().toLowerCase();
@@ -121,11 +75,7 @@ export default function Index() {
     const max = maxPrice !== "" ? parseFloat(maxPrice) : null;
 
     return sorted.filter((o) => {
-      if (
-        q &&
-        !o.customer_name.toLowerCase().includes(q) &&
-        !String(o.invoice_number).includes(q)
-      )
+      if (q && !o.customer_name.toLowerCase().includes(q) && !String(o.invoice_number).includes(q))
         return false;
       if (zip && !o.zip_code.toLowerCase().startsWith(zip)) return false;
       if (min !== null && !isNaN(min) && o.total < min) return false;
@@ -137,43 +87,47 @@ export default function Index() {
 
   const renderOrder = ({ item }: { item: Order }) => (
     <Pressable
+      android_ripple={{ color: "#E2DAD3" }}
       style={[styles.card, item.finished && styles.cardFinished]}
-      onPress={() =>
-        router.push({
-          pathname: "/order/[id]",
-          params: { id: item.invoice_number },
-        })
-      }
+      onPress={() => router.push({ pathname: "/order/[id]", params: { id: item.invoice_number } })}
     >
       <View style={styles.cardTop}>
-        <Text style={styles.customerName}>{item.customer_name}</Text>
+        <Text style={styles.customerName} numberOfLines={1}>{item.customer_name}</Text>
         <View style={styles.cardRight}>
           <Text style={styles.invoiceNumber}>#{item.invoice_number}</Text>
-          <Text style={styles.cardTotal}>{item.total.toFixed(2)}</Text>
-          {!!item.hstatus && (
-            <View style={styles.statusBadge}>
-              <Text style={styles.statusBadgeText}>{item.hstatus}</Text>
-            </View>
-          )}
+          <Text style={styles.cardTotal}>{item.total.toFixed(0)} kr</Text>
         </View>
       </View>
       <View style={styles.cardBottom}>
         <Text style={styles.cardMeta}>{item.date}</Text>
+        {!!item.hstatus && (
+          <View style={styles.statusBadge}>
+            <Text style={styles.statusBadgeText}>{item.hstatus}</Text>
+          </View>
+        )}
+        {item.finished && (
+          <View style={styles.finishedBadge}>
+            <Text style={styles.finishedBadgeText}>Finished</Text>
+          </View>
+        )}
       </View>
     </Pressable>
   );
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Orders</Text>
-        <Pressable onPress={handleLogout}>
+        <View>
+          <Text style={styles.headerTitle}>Orders</Text>
+          {orders.length > 0 && (
+            <Text style={styles.headerSub}>{filteredOrders.length} of {orders.length}</Text>
+          )}
+        </View>
+        <Pressable onPress={handleLogout} style={styles.logoutButton}>
           <Text style={styles.logoutText}>Log out</Text>
         </Pressable>
       </View>
 
-      {/* Search + Filter */}
       <View style={styles.searchRow}>
         <TextInput
           style={styles.searchInput}
@@ -182,21 +136,12 @@ export default function Index() {
           value={query}
           onChangeText={setQuery}
           autoCorrect={false}
-          clearButtonMode="while-editing"
         />
         <Pressable
-          style={[
-            styles.filterButton,
-            activeFilterCount > 0 && styles.filterButtonActive,
-          ]}
+          style={[styles.filterButton, activeFilterCount > 0 && styles.filterButtonActive]}
           onPress={() => setShowFilters((v) => !v)}
         >
-          <Text
-            style={[
-              styles.filterButtonText,
-              activeFilterCount > 0 && styles.filterButtonTextActive,
-            ]}
-          >
+          <Text style={[styles.filterButtonText, activeFilterCount > 0 && styles.filterButtonTextActive]}>
             {activeFilterCount > 0 ? `Filter (${activeFilterCount})` : "Filter"}
           </Text>
         </Pressable>
@@ -204,20 +149,19 @@ export default function Index() {
 
       {showFilters && (
         <View style={styles.filterPanel}>
-          <View style={styles.filterField}>
-            <Text style={styles.filterLabel}>Zip code</Text>
-            <TextInput
-              style={styles.filterInput}
-              placeholder="e.g. 101"
-              placeholderTextColor="#bbb"
-              value={zipFilter}
-              onChangeText={setZipFilter}
-              autoCorrect={false}
-              clearButtonMode="while-editing"
-              keyboardType="numeric"
-            />
-          </View>
           <View style={styles.filterRow}>
+            <View style={[styles.filterField, { flex: 1 }]}>
+              <Text style={styles.filterLabel}>Zip code</Text>
+              <TextInput
+                style={styles.filterInput}
+                placeholder="e.g. 101"
+                placeholderTextColor="#bbb"
+                value={zipFilter}
+                onChangeText={setZipFilter}
+                autoCorrect={false}
+                keyboardType="numeric"
+              />
+            </View>
             <View style={[styles.filterField, { flex: 1 }]}>
               <Text style={styles.filterLabel}>Min price</Text>
               <TextInput
@@ -227,7 +171,6 @@ export default function Index() {
                 value={minPrice}
                 onChangeText={setMinPrice}
                 keyboardType="numeric"
-                clearButtonMode="while-editing"
               />
             </View>
             <View style={[styles.filterField, { flex: 1 }]}>
@@ -239,10 +182,10 @@ export default function Index() {
                 value={maxPrice}
                 onChangeText={setMaxPrice}
                 keyboardType="numeric"
-                clearButtonMode="while-editing"
               />
             </View>
           </View>
+
           {statuses.length > 0 && (
             <View style={styles.filterField}>
               <Text style={styles.filterLabel}>Status</Text>
@@ -250,18 +193,10 @@ export default function Index() {
                 {statuses.map((s) => (
                   <Pressable
                     key={s}
-                    style={[
-                      styles.statusChip,
-                      selectedStatus === s && styles.statusChipActive,
-                    ]}
+                    style={[styles.statusChip, selectedStatus === s && styles.statusChipActive]}
                     onPress={() => setSelectedStatus((v) => (v === s ? "" : s))}
                   >
-                    <Text
-                      style={[
-                        styles.statusChipText,
-                        selectedStatus === s && styles.statusChipTextActive,
-                      ]}
-                    >
+                    <Text style={[styles.statusChipText, selectedStatus === s && styles.statusChipTextActive]}>
                       {s}
                     </Text>
                   </Pressable>
@@ -269,22 +204,15 @@ export default function Index() {
               </View>
             </View>
           )}
+
           {activeFilterCount > 0 && (
-            <Pressable
-              onPress={() => {
-                setZipFilter("");
-                setMinPrice("");
-                setMaxPrice("");
-                setSelectedStatus("");
-              }}
-            >
+            <Pressable onPress={() => { setZipFilter(""); setMinPrice(""); setMaxPrice(""); setSelectedStatus(""); }}>
               <Text style={styles.clearFiltersText}>Clear filters</Text>
             </Pressable>
           )}
         </View>
       )}
 
-      {/* Content */}
       {loading ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#208AEF" />
@@ -304,45 +232,21 @@ export default function Index() {
           contentContainerStyle={styles.list}
           keyboardShouldPersistTaps="handled"
           refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor="#208AEF"
-            />
+            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadOrders(true); }} tintColor="#208AEF" />
           }
           ListEmptyComponent={
             <View style={styles.centered}>
               <Text style={styles.emptyText}>
-                {query ? "No orders match your search." : "No orders found."}
+                {query || activeFilterCount > 0 ? "No orders match your search." : "No orders found."}
               </Text>
-              {!query && (
-                <Pressable
-                  style={styles.fetchButton}
-                  onPress={() => loadOrders()}
-                >
+              {!query && activeFilterCount === 0 && (
+                <Pressable style={styles.fetchButton} onPress={() => loadOrders()}>
                   <Text style={styles.fetchButtonText}>Fetch orders</Text>
                 </Pressable>
               )}
             </View>
           }
         />
-      )}
-
-      {/* Clear button */}
-      {!loading && !error && orders.length > 0 && (
-        <View style={styles.footer}>
-          <Pressable
-            style={[styles.clearButton, clearing && styles.clearButtonDisabled]}
-            onPress={handleClear}
-            disabled={clearing}
-          >
-            {clearing ? (
-              <ActivityIndicator color="#C0392B" />
-            ) : (
-              <Text style={styles.clearButtonText}>Clear all orders</Text>
-            )}
-          </Pressable>
-        </View>
       )}
     </SafeAreaView>
   );
@@ -351,25 +255,36 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F7F5F2",
+    backgroundColor: "#F2F0ED",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#E2DAD3",
+    backgroundColor: "#fff",
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "700",
     color: "#1a1a1a",
   },
+  headerSub: {
+    fontSize: 12,
+    color: "#aaa",
+    marginTop: 1,
+  },
+  logoutButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
   logoutText: {
     color: "#888",
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: "500",
   },
   searchRow: {
     flexDirection: "row",
@@ -378,58 +293,61 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: "#E2DAD3",
+    backgroundColor: "#fff",
     gap: 8,
   },
   searchInput: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#F7F5F2",
     borderWidth: 1,
     borderColor: "#E2DAD3",
     borderRadius: 10,
     paddingHorizontal: 14,
-    paddingVertical: 9,
-    fontSize: 15,
+    paddingVertical: 11,
+    fontSize: 16,
     color: "#1a1a1a",
   },
   filterButton: {
     borderWidth: 1,
     borderColor: "#E2DAD3",
     borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    backgroundColor: "#fff",
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    backgroundColor: "#F7F5F2",
   },
   filterButtonActive: {
     borderColor: "#208AEF",
     backgroundColor: "#EBF4FF",
   },
   filterButtonText: {
-    fontSize: 14,
+    fontSize: 15,
     color: "#888",
-    fontWeight: "500",
+    fontWeight: "600",
   },
   filterButtonTextActive: {
     color: "#208AEF",
   },
   filterPanel: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: "#E2DAD3",
     backgroundColor: "#FAFAF9",
-    gap: 10,
+    gap: 12,
   },
   filterRow: {
     flexDirection: "row",
     gap: 10,
   },
   filterField: {
-    gap: 4,
+    gap: 5,
   },
   filterLabel: {
     fontSize: 12,
     color: "#888",
-    fontWeight: "500",
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   filterInput: {
     backgroundColor: "#fff",
@@ -437,15 +355,14 @@ const styles = StyleSheet.create({
     borderColor: "#E2DAD3",
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 7,
-    fontSize: 14,
+    paddingVertical: 9,
+    fontSize: 15,
     color: "#1a1a1a",
   },
   clearFiltersText: {
-    fontSize: 13,
+    fontSize: 14,
     color: "#208AEF",
-    fontWeight: "500",
-    alignSelf: "flex-start",
+    fontWeight: "600",
   },
   centered: {
     flex: 1,
@@ -460,15 +377,15 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   retryButton: {
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: "#208AEF",
-    paddingHorizontal: 20,
-    paddingVertical: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
     borderRadius: 8,
   },
   retryText: {
     color: "#208AEF",
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
   },
   emptyText: {
@@ -478,18 +395,18 @@ const styles = StyleSheet.create({
   },
   fetchButton: {
     backgroundColor: "#208AEF",
-    paddingHorizontal: 28,
-    paddingVertical: 12,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
     borderRadius: 10,
   },
   fetchButtonText: {
     color: "#fff",
-    fontSize: 15,
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: "700",
   },
   list: {
-    padding: 16,
-    gap: 12,
+    padding: 14,
+    gap: 10,
     flexGrow: 1,
   },
   card: {
@@ -499,6 +416,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E2DAD3",
     gap: 8,
+    elevation: 1,
   },
   cardFinished: {
     backgroundColor: "#F0FFF4",
@@ -506,15 +424,15 @@ const styles = StyleSheet.create({
   },
   cardTop: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
+    gap: 8,
   },
   customerName: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "600",
     color: "#1a1a1a",
     flex: 1,
-    marginRight: 8,
   },
   invoiceNumber: {
     fontSize: 13,
@@ -523,33 +441,44 @@ const styles = StyleSheet.create({
   },
   cardBottom: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    gap: 8,
   },
   cardMeta: {
     fontSize: 13,
     color: "#aaa",
+    flex: 1,
   },
   cardRight: {
     alignItems: "flex-end",
     gap: 2,
   },
   cardTotal: {
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 14,
+    fontWeight: "700",
     color: "#208AEF",
   },
   statusBadge: {
     backgroundColor: "#F0F0F0",
     borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    alignSelf: "flex-end",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
   statusBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#666",
-    fontWeight: "500",
+    fontWeight: "600",
+  },
+  finishedBadge: {
+    backgroundColor: "#DCFCE7",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  finishedBadgeText: {
+    fontSize: 12,
+    color: "#16A34A",
+    fontWeight: "600",
   },
   statusChips: {
     flexDirection: "row",
@@ -561,8 +490,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E2DAD3",
     borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     backgroundColor: "#fff",
   },
   statusChipActive: {
@@ -570,31 +499,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#EBF4FF",
   },
   statusChipText: {
-    fontSize: 13,
+    fontSize: 14,
     color: "#888",
     fontWeight: "500",
   },
   statusChipTextActive: {
     color: "#208AEF",
-  },
-  footer: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#E2DAD3",
-  },
-  clearButton: {
-    borderWidth: 1.5,
-    borderColor: "#C0392B",
-    borderRadius: 10,
-    paddingVertical: 13,
-    alignItems: "center",
-  },
-  clearButtonDisabled: {
-    opacity: 0.5,
-  },
-  clearButtonText: {
-    color: "#C0392B",
-    fontSize: 15,
-    fontWeight: "600",
   },
 });
