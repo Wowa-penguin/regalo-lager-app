@@ -1,3 +1,5 @@
+import { createInvoiceNotes } from "@/api/createInvoiceNotes";
+import { fetchInvoiceNotes } from "@/api/fetchInvoiceNotes";
 import { fetchOrders } from "@/api/fetchOrders";
 import useStore, { clearSession } from "@/store/useStore";
 import { Order } from "@/types/order";
@@ -6,6 +8,7 @@ import { Redirect, router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -58,16 +61,24 @@ export default function Index() {
     router.replace("/login");
   };
 
-  const activeFilterCount = [zipFilter, minPrice, maxPrice, selectedStatus].filter(Boolean).length;
+  const activeFilterCount = [
+    zipFilter,
+    minPrice,
+    maxPrice,
+    selectedStatus,
+  ].filter(Boolean).length;
 
   const statuses = useMemo(
-    () => Array.from(new Set(orders.map((o) => o.hstatus).filter(Boolean))).sort(),
+    () =>
+      Array.from(new Set(orders.map((o) => o.hstatus).filter(Boolean))).sort(),
     [orders],
   );
 
   const filteredOrders = useMemo(() => {
     const sorted = [...orders].sort((a, b) =>
-      a.customer_name.localeCompare(b.customer_name, undefined, { sensitivity: "base" }),
+      a.customer_name.localeCompare(b.customer_name, undefined, {
+        sensitivity: "base",
+      }),
     );
     const q = query.trim().toLowerCase();
     const zip = zipFilter.trim().toLowerCase();
@@ -75,7 +86,11 @@ export default function Index() {
     const max = maxPrice !== "" ? parseFloat(maxPrice) : null;
 
     return sorted.filter((o) => {
-      if (q && !o.customer_name.toLowerCase().includes(q) && !String(o.invoice_number).includes(q))
+      if (
+        q &&
+        !o.customer_name.toLowerCase().includes(q) &&
+        !String(o.invoice_number).includes(q)
+      )
         return false;
       if (zip && !o.zip_code.toLowerCase().startsWith(zip)) return false;
       if (min !== null && !isNaN(min) && o.total < min) return false;
@@ -85,14 +100,57 @@ export default function Index() {
     });
   }, [orders, query, zipFilter, minPrice, maxPrice, selectedStatus]);
 
+  const pushToOrder = async (invoice_number: number) => {
+    try {
+      const invoiceArr = await fetchInvoiceNotes();
+
+      const blockedBy = invoiceArr.find(
+        (note) =>
+          note.invoice_number === invoice_number &&
+          note.name !== user.username,
+      );
+
+      if (blockedBy) {
+        Alert.alert(
+          "Order in use",
+          `${blockedBy.name} is currently working on this order.`,
+          [{ text: "OK" }],
+        );
+        return;
+      }
+
+      const alreadyMine = invoiceArr.some(
+        (note) =>
+          note.invoice_number === invoice_number &&
+          note.name === user.username,
+      );
+
+      if (!alreadyMine) {
+        await createInvoiceNotes(invoice_number, user.username);
+      }
+
+      router.push({
+        pathname: "/order/[id]",
+        params: { id: invoice_number },
+      });
+    } catch (e: unknown) {
+      Alert.alert(
+        "Error",
+        e instanceof Error ? e.message : "Could not open order",
+      );
+    }
+  };
+
   const renderOrder = ({ item }: { item: Order }) => (
     <Pressable
       android_ripple={{ color: "#E2DAD3" }}
       style={[styles.card, item.finished && styles.cardFinished]}
-      onPress={() => router.push({ pathname: "/order/[id]", params: { id: item.invoice_number } })}
+      onPress={() => pushToOrder(item.invoice_number)}
     >
       <View style={styles.cardTop}>
-        <Text style={styles.customerName} numberOfLines={1}>{item.customer_name}</Text>
+        <Text style={styles.customerName} numberOfLines={1}>
+          {item.customer_name}
+        </Text>
         <View style={styles.cardRight}>
           <Text style={styles.invoiceNumber}>#{item.invoice_number}</Text>
           <Text style={styles.cardTotal}>{item.total.toFixed(0)} kr</Text>
@@ -120,7 +178,9 @@ export default function Index() {
         <View>
           <Text style={styles.headerTitle}>Orders</Text>
           {orders.length > 0 && (
-            <Text style={styles.headerSub}>{filteredOrders.length} of {orders.length}</Text>
+            <Text style={styles.headerSub}>
+              {filteredOrders.length} of {orders.length}
+            </Text>
           )}
         </View>
         <Pressable onPress={handleLogout} style={styles.logoutButton}>
@@ -138,10 +198,18 @@ export default function Index() {
           autoCorrect={false}
         />
         <Pressable
-          style={[styles.filterButton, activeFilterCount > 0 && styles.filterButtonActive]}
+          style={[
+            styles.filterButton,
+            activeFilterCount > 0 && styles.filterButtonActive,
+          ]}
           onPress={() => setShowFilters((v) => !v)}
         >
-          <Text style={[styles.filterButtonText, activeFilterCount > 0 && styles.filterButtonTextActive]}>
+          <Text
+            style={[
+              styles.filterButtonText,
+              activeFilterCount > 0 && styles.filterButtonTextActive,
+            ]}
+          >
             {activeFilterCount > 0 ? `Filter (${activeFilterCount})` : "Filter"}
           </Text>
         </Pressable>
@@ -193,10 +261,18 @@ export default function Index() {
                 {statuses.map((s) => (
                   <Pressable
                     key={s}
-                    style={[styles.statusChip, selectedStatus === s && styles.statusChipActive]}
+                    style={[
+                      styles.statusChip,
+                      selectedStatus === s && styles.statusChipActive,
+                    ]}
                     onPress={() => setSelectedStatus((v) => (v === s ? "" : s))}
                   >
-                    <Text style={[styles.statusChipText, selectedStatus === s && styles.statusChipTextActive]}>
+                    <Text
+                      style={[
+                        styles.statusChipText,
+                        selectedStatus === s && styles.statusChipTextActive,
+                      ]}
+                    >
                       {s}
                     </Text>
                   </Pressable>
@@ -206,7 +282,14 @@ export default function Index() {
           )}
 
           {activeFilterCount > 0 && (
-            <Pressable onPress={() => { setZipFilter(""); setMinPrice(""); setMaxPrice(""); setSelectedStatus(""); }}>
+            <Pressable
+              onPress={() => {
+                setZipFilter("");
+                setMinPrice("");
+                setMaxPrice("");
+                setSelectedStatus("");
+              }}
+            >
               <Text style={styles.clearFiltersText}>Clear filters</Text>
             </Pressable>
           )}
@@ -232,15 +315,27 @@ export default function Index() {
           contentContainerStyle={styles.list}
           keyboardShouldPersistTaps="handled"
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadOrders(true); }} tintColor="#208AEF" />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => {
+                setRefreshing(true);
+                loadOrders(true);
+              }}
+              tintColor="#208AEF"
+            />
           }
           ListEmptyComponent={
             <View style={styles.centered}>
               <Text style={styles.emptyText}>
-                {query || activeFilterCount > 0 ? "No orders match your search." : "No orders found."}
+                {query || activeFilterCount > 0
+                  ? "No orders match your search."
+                  : "No orders found."}
               </Text>
               {!query && activeFilterCount === 0 && (
-                <Pressable style={styles.fetchButton} onPress={() => loadOrders()}>
+                <Pressable
+                  style={styles.fetchButton}
+                  onPress={() => loadOrders()}
+                >
                   <Text style={styles.fetchButtonText}>Fetch orders</Text>
                 </Pressable>
               )}

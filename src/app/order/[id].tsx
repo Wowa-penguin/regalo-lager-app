@@ -1,4 +1,5 @@
 import { createBarcode } from "@/api/createBarcode";
+import { deleteInvoiceNotes } from "@/api/fetchInvoiceNotes";
 import { fetchOrder } from "@/api/fetchOrder";
 import { fetchProducts } from "@/api/fetchProducts";
 import { finishOrder } from "@/api/finishOrder";
@@ -85,6 +86,12 @@ export default function OrderDetail() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    return () => {
+      deleteInvoiceNotes(invoiceNumber).catch(() => {});
+    };
+  }, [invoiceNumber]);
+
   const pickItem = (line: OrderLine) => {
     const current = pickedCounts[line.item_code] ?? 0;
     const total = itemTotals.get(line.item_code) ?? line.quantity;
@@ -128,7 +135,9 @@ export default function OrderDetail() {
     }
 
     pickItem(line);
-    setTimeout(() => { processingRef.current = false; }, 300);
+    setTimeout(() => {
+      processingRef.current = false;
+    }, 300);
   };
 
   useZebraScanner(!!order && !order.finished, handleScanned);
@@ -215,7 +224,11 @@ export default function OrderDetail() {
       if (pa !== pb) return pa - pb;
       const pA = productMap.get(a.item_code);
       const pB = productMap.get(b.item_code);
-      const byCategory = (pA?.category ?? "").localeCompare(pB?.category ?? "", undefined, { sensitivity: "base" });
+      const byCategory = (pA?.category ?? "").localeCompare(
+        pB?.category ?? "",
+        undefined,
+        { sensitivity: "base" },
+      );
       if (byCategory !== 0) return byCategory;
       const nameA = pA?.name || a.description || a.item_code;
       const nameB = pB?.name || b.description || b.item_code;
@@ -360,10 +373,19 @@ export default function OrderDetail() {
     );
   };
 
+  const handleBackArrow = async () => {
+    const res = await deleteInvoiceNotes(invoiceNumber);
+    if (res.status === "deleted") {
+      router.back();
+    } else {
+      // todo: handle Error if status is not deleted
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()}>
+        <Pressable onPress={handleBackArrow}>
           <Text style={styles.backText}>← Back</Text>
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>
@@ -568,7 +590,10 @@ export default function OrderDetail() {
                     setItemMissing(
                       invoiceNumber,
                       manualEntry.line.item_code,
-                      Math.max(0, manualEntry.line.quantity - manualEntry.count),
+                      Math.max(
+                        0,
+                        manualEntry.line.quantity - manualEntry.count,
+                      ),
                     );
                   }
                 }
@@ -615,7 +640,10 @@ export default function OrderDetail() {
         visible={overpackWarning !== null}
         animationType="fade"
         transparent
-        onRequestClose={() => { setOverpackWarning(null); processingRef.current = false; }}
+        onRequestClose={() => {
+          setOverpackWarning(null);
+          processingRef.current = false;
+        }}
       >
         <View style={styles.warnOverlay}>
           <View style={styles.warnSheet}>
@@ -636,7 +664,10 @@ export default function OrderDetail() {
             )}
             <Pressable
               style={styles.warnButton}
-              onPress={() => { setOverpackWarning(null); processingRef.current = false; }}
+              onPress={() => {
+                setOverpackWarning(null);
+                processingRef.current = false;
+              }}
             >
               <Text style={styles.warnButtonText}>Got it</Text>
             </Pressable>
@@ -648,7 +679,10 @@ export default function OrderDetail() {
         visible={wrongOrderProduct !== null}
         animationType="fade"
         transparent
-        onRequestClose={() => { setWrongOrderProduct(null); processingRef.current = false; }}
+        onRequestClose={() => {
+          setWrongOrderProduct(null);
+          processingRef.current = false;
+        }}
       >
         <View style={styles.warnOverlay}>
           <View style={styles.warnSheet}>
@@ -675,7 +709,10 @@ export default function OrderDetail() {
               })()}
             <Pressable
               style={styles.warnButton}
-              onPress={() => { setWrongOrderProduct(null); processingRef.current = false; }}
+              onPress={() => {
+                setWrongOrderProduct(null);
+                processingRef.current = false;
+              }}
             >
               <Text style={styles.warnButtonText}>Got it</Text>
             </Pressable>

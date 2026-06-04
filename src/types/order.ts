@@ -28,3 +28,8 @@ export interface Order {
   description_text_2: string;
   lines?: OrderLine[];
 }
+
+export interface InvoiceNote {
+  invoice_number: number;
+  name: string;
+}
