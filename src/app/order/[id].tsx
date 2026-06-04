@@ -87,12 +87,13 @@ export default function OrderDetail() {
 
   const pickItem = (line: OrderLine) => {
     const current = pickedCounts[line.item_code] ?? 0;
-    if (current >= line.quantity) {
+    const total = itemTotals.get(line.item_code) ?? line.quantity;
+    if (current >= total) {
       setOverpackWarning({
         name: line.description || line.item_code,
         itemCode: line.item_code,
         picked: current,
-        quantity: line.quantity,
+        quantity: total,
         unit: line.unit,
       });
       return;
@@ -100,7 +101,7 @@ export default function OrderDetail() {
     const next = current + 1;
     setItemPicked(invoiceNumber, line.item_code, next);
     if ((missingCounts[line.item_code] ?? 0) > 0) {
-      setItemMissing(invoiceNumber, line.item_code, Math.max(0, line.quantity - next));
+      setItemMissing(invoiceNumber, line.item_code, Math.max(0, total - next));
     }
   };
 
@@ -169,9 +170,39 @@ export default function OrderDetail() {
     [products],
   );
 
+  // Total quantity per item_code across all duplicate lines
+  const itemTotals = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const line of order?.lines ?? []) {
+      map.set(line.item_code, (map.get(line.item_code) ?? 0) + line.quantity);
+    }
+    return map;
+  }, [order?.lines]);
+
+  // Distribute the shared pickedCounts counter across duplicate lines in order:
+  // Line A fills first, then Line B gets the overflow, etc.
+  const attributedPicks = useMemo((): Map<OrderLine, number> => {
+    if (!order?.lines) return new Map();
+    const groups = new Map<string, OrderLine[]>();
+    for (const line of order.lines) {
+      if (!groups.has(line.item_code)) groups.set(line.item_code, []);
+      groups.get(line.item_code)!.push(line);
+    }
+    const result = new Map<OrderLine, number>();
+    for (const [itemCode, group] of groups) {
+      let remaining = pickedCounts[itemCode] ?? 0;
+      for (const line of group) {
+        const attributed = Math.min(remaining, line.quantity);
+        result.set(line, attributed);
+        remaining -= attributed;
+      }
+    }
+    return result;
+  }, [order?.lines, pickedCounts]);
+
   const lines = useMemo(() => {
     const priority = (line: OrderLine) => {
-      const picked = pickedCounts[line.item_code] ?? 0;
+      const picked = attributedPicks.get(line) ?? 0;
       const missing = missingCounts[line.item_code] ?? 0;
       if (picked >= line.quantity) return 1;
       if (missing > 0 && picked === 0) return 3;
@@ -190,7 +221,7 @@ export default function OrderDetail() {
       const nameB = pB?.name || b.description || b.item_code;
       return nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
     });
-  }, [order?.lines, productMap, pickedCounts, missingCounts]);
+  }, [order?.lines, productMap, attributedPicks, missingCounts]);
 
   const mappedProductIds = useMemo(
     () => new Set(barcodes.map((b) => b.product_id)),
@@ -208,12 +239,12 @@ export default function OrderDetail() {
   );
 
   const completedLines = lines.filter(
-    (l) => (pickedCounts[l.item_code] ?? 0) >= l.quantity,
+    (l) => (attributedPicks.get(l) ?? 0) >= l.quantity,
   ).length;
   const allDone = lines.length > 0 && completedLines === lines.length;
 
   const renderLine = ({ item }: { item: OrderLine }) => {
-    const picked = pickedCounts[item.item_code] ?? 0;
+    const picked = attributedPicks.get(item) ?? 0;
     const missing = missingCounts[item.item_code] ?? 0;
     const isComplete = picked >= item.quantity;
     const isPartial = picked > 0 && !isComplete;
@@ -235,7 +266,7 @@ export default function OrderDetail() {
             onPress={() =>
               setManualEntry({
                 line: item,
-                count: pickedCounts[item.item_code] ?? 0,
+                count: attributedPicks.get(item) ?? 0,
               })
             }
             hitSlop={6}
