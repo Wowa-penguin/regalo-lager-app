@@ -106,8 +106,7 @@ export default function Index() {
 
       const blockedBy = invoiceArr.find(
         (note) =>
-          note.invoice_number === invoice_number &&
-          note.name !== user.username,
+          note.invoice_number === invoice_number && note.name !== user.username,
       );
 
       if (blockedBy) {
@@ -121,8 +120,7 @@ export default function Index() {
 
       const alreadyMine = invoiceArr.some(
         (note) =>
-          note.invoice_number === invoice_number &&
-          note.name === user.username,
+          note.invoice_number === invoice_number && note.name === user.username,
       );
 
       if (!alreadyMine) {
@@ -176,22 +174,23 @@ export default function Index() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>Orders</Text>
+          <Text style={styles.headerTitle}>Pantanir</Text>
           {orders.length > 0 && (
             <Text style={styles.headerSub}>
-              {filteredOrders.length} of {orders.length}
+              {filteredOrders.length} af {orders.length}
             </Text>
           )}
+          <Text style={styles.headerSub}>Notandi: {user.username}</Text>
         </View>
         <Pressable onPress={handleLogout} style={styles.logoutButton}>
-          <Text style={styles.logoutText}>Log out</Text>
+          <Text style={styles.logoutText}>Skrá út</Text>
         </Pressable>
       </View>
 
       <View style={styles.searchRow}>
         <TextInput
           style={styles.searchInput}
-          placeholder="Search by name or order ID…"
+          placeholder="Nafni eða pöntunarnúmer"
           placeholderTextColor="#bbb"
           value={query}
           onChangeText={setQuery}
@@ -219,7 +218,7 @@ export default function Index() {
         <View style={styles.filterPanel}>
           <View style={styles.filterRow}>
             <View style={[styles.filterField, { flex: 1 }]}>
-              <Text style={styles.filterLabel}>Zip code</Text>
+              <Text style={styles.filterLabel}>Póstkóði</Text>
               <TextInput
                 style={styles.filterInput}
                 placeholder="e.g. 101"
@@ -231,7 +230,7 @@ export default function Index() {
               />
             </View>
             <View style={[styles.filterField, { flex: 1 }]}>
-              <Text style={styles.filterLabel}>Min price</Text>
+              <Text style={styles.filterLabel}>Lágmarksverð</Text>
               <TextInput
                 style={styles.filterInput}
                 placeholder="0"
@@ -242,7 +241,7 @@ export default function Index() {
               />
             </View>
             <View style={[styles.filterField, { flex: 1 }]}>
-              <Text style={styles.filterLabel}>Max price</Text>
+              <Text style={styles.filterLabel}>Hámarksverð</Text>
               <TextInput
                 style={styles.filterInput}
                 placeholder="∞"
@@ -256,7 +255,7 @@ export default function Index() {
 
           {statuses.length > 0 && (
             <View style={styles.filterField}>
-              <Text style={styles.filterLabel}>Status</Text>
+              <Text style={styles.filterLabel}>Staða</Text>
               <View style={styles.statusChips}>
                 {statuses.map((s) => (
                   <Pressable

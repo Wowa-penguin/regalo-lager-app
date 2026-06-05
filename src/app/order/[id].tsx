@@ -13,6 +13,7 @@ import * as WebBrowser from "expo-web-browser";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   Modal,
   Pressable,
@@ -34,6 +35,10 @@ export default function OrderDetail() {
   const [error, setError] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const processingRef = useRef(false);
+
+  const [toastMessage, setToastMessage] = useState("");
+  const toastAnim = useRef(new Animated.Value(-80)).current;
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [pendingBarcode, setPendingBarcode] = useState<string | null>(null);
   const [assigning, setAssigning] = useState(false);
@@ -89,8 +94,28 @@ export default function OrderDetail() {
   useEffect(() => {
     return () => {
       deleteInvoiceNotes(invoiceNumber).catch(() => {});
+      if (toastTimer.current) clearTimeout(toastTimer.current);
     };
   }, [invoiceNumber]);
+
+  const showToast = (message: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToastMessage(message);
+    toastAnim.setValue(-80);
+    Animated.spring(toastAnim, {
+      toValue: 0,
+      useNativeDriver: true,
+      damping: 18,
+      stiffness: 220,
+    }).start();
+    toastTimer.current = setTimeout(() => {
+      Animated.timing(toastAnim, {
+        toValue: -80,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }, 1500);
+  };
 
   const pickItem = (line: OrderLine) => {
     const current = pickedCounts[line.item_code] ?? 0;
@@ -110,6 +135,7 @@ export default function OrderDetail() {
     if ((missingCounts[line.item_code] ?? 0) > 0) {
       setItemMissing(invoiceNumber, line.item_code, Math.max(0, total - next));
     }
+    showToast(`✓  ${line.description || line.item_code}`);
   };
 
   const handleScanned = (data: string) => {
@@ -313,7 +339,7 @@ export default function OrderDetail() {
               const qty = productMap.get(item.item_code)?.total_quantity;
               return qty != null ? (
                 <Text style={styles.itemCode}>
-                  {item.item_code} - Stock: {qty}
+                  {item.item_code} - magn: {qty}
                 </Text>
               ) : (
                 <Text style={styles.itemCode}>{item.item_code}</Text>
@@ -333,7 +359,7 @@ export default function OrderDetail() {
           </Text>
           {missing > 0 && (
             <View style={styles.missingBadge}>
-              <Text style={styles.missingBadgeText}>{missing} missing</Text>
+              <Text style={styles.missingBadgeText}>{missing} vantar</Text>
             </View>
           )}
           <Pressable
@@ -389,7 +415,7 @@ export default function OrderDetail() {
           <Text style={styles.backText}>← Back</Text>
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>
-          {order?.customer_name ?? `Order #${id}`}
+          {order?.customer_name ?? `Pöntun #${id}`}
         </Text>
         <Pressable
           style={[
@@ -404,7 +430,7 @@ export default function OrderDetail() {
             <ActivityIndicator color="#fff" size="small" />
           ) : (
             <Text style={styles.finishButtonText}>
-              {order?.finished ? "Finished" : "Finish"}
+              {order?.finished ? "Lokið" : "Klára"}
             </Text>
           )}
         </Pressable>
@@ -430,11 +456,11 @@ export default function OrderDetail() {
               style={[styles.progressText, allDone && styles.progressTextDone]}
             >
               {allDone
-                ? "✓ All items picked!"
-                : `${completedLines} of ${lines.length} items complete`}
+                ? "✓ Allir vörur komnar!"
+                : `${completedLines} af ${lines.length} eftir`}
             </Text>
             {!allDone && (
-              <Text style={styles.scannerBadge}>⊙ Scanner active</Text>
+              <Text style={styles.scannerBadge}>⊙ Skanni virkur</Text>
             )}
           </View>
           {!!order.description_text_2 && (
@@ -460,6 +486,16 @@ export default function OrderDetail() {
         </>
       ) : null}
 
+      {/* Scan confirmation toast */}
+      <Animated.View
+        style={[styles.scanToast, { transform: [{ translateY: toastAnim }] }]}
+        pointerEvents="none"
+      >
+        <Text style={styles.scanToastText} numberOfLines={1}>
+          {toastMessage}
+        </Text>
+      </Animated.View>
+
       {/* Unknown barcode — assign to product */}
       <Modal
         visible={pendingBarcode !== null}
@@ -473,11 +509,9 @@ export default function OrderDetail() {
       >
         <View style={styles.modalOverlay}>
           <SafeAreaView edges={["bottom"]} style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Unknown barcode</Text>
+            <Text style={styles.modalTitle}>Óþekkt strikamerki</Text>
             <Text style={styles.modalBarcode}>{pendingBarcode}</Text>
-            <Text style={styles.modalSubtitle}>
-              Which product does this represent?
-            </Text>
+            <Text style={styles.modalSubtitle}>Hvaða vara er þetta?</Text>
             {!!assignError && (
               <Text style={styles.assignError}>{assignError}</Text>
             )}
@@ -492,7 +526,7 @@ export default function OrderDetail() {
               contentContainerStyle={{ gap: 8 }}
               ListEmptyComponent={
                 <Text style={styles.assignEmptyText}>
-                  All products have already been scanned.
+                  Allar vörur hafa þegar verið skannaðar.
                 </Text>
               }
             />
@@ -509,7 +543,7 @@ export default function OrderDetail() {
               {assigning ? (
                 <ActivityIndicator color="#888" />
               ) : (
-                <Text style={styles.cancelText}>Cancel</Text>
+                <Text style={styles.cancelText}>Hætta</Text>
               )}
             </Pressable>
           </SafeAreaView>
@@ -600,7 +634,7 @@ export default function OrderDetail() {
                 setManualEntry(null);
               }}
             >
-              <Text style={styles.doneButtonText}>Done</Text>
+              <Text style={styles.doneButtonText}>Búið</Text>
             </Pressable>
 
             <Pressable
@@ -622,14 +656,14 @@ export default function OrderDetail() {
                 setManualEntry(null);
               }}
             >
-              <Text style={styles.missingButtonText}>Rest does not exist</Text>
+              <Text style={styles.missingButtonText}>Vantar vörur</Text>
             </Pressable>
 
             <Pressable
               style={styles.cancelButton}
               onPress={() => setManualEntry(null)}
             >
-              <Text style={styles.cancelText}>Cancel</Text>
+              <Text style={styles.cancelText}>Hætta</Text>
             </Pressable>
           </SafeAreaView>
         </View>
@@ -648,17 +682,17 @@ export default function OrderDetail() {
         <View style={styles.warnOverlay}>
           <View style={styles.warnSheet}>
             <Text style={styles.warnIcon}>⚠️</Text>
-            <Text style={styles.warnTitle}>Already fully picked</Text>
+            <Text style={styles.warnTitle}>Nú þegar allt valið</Text>
             {overpackWarning && (
               <>
                 <Text style={styles.warnProduct}>{overpackWarning.name}</Text>
                 <Text style={styles.warnBody}>
-                  You've already scanned{" "}
+                  Þú hefur þegar skannað{" "}
                   <Text style={styles.warnBold}>
                     {overpackWarning.picked} of {overpackWarning.quantity}{" "}
                     {overpackWarning.unit}
                   </Text>{" "}
-                  for this item.{"\n"}Don't add more to the order.
+                  Fyrir þessa vöru.{"\n"}Ekki bæta meiru við pöntunina.
                 </Text>
               </>
             )}
@@ -669,7 +703,7 @@ export default function OrderDetail() {
                 processingRef.current = false;
               }}
             >
-              <Text style={styles.warnButtonText}>Got it</Text>
+              <Text style={styles.warnButtonText}>Áfram</Text>
             </Pressable>
           </View>
         </View>
@@ -687,7 +721,7 @@ export default function OrderDetail() {
         <View style={styles.warnOverlay}>
           <View style={styles.warnSheet}>
             <Text style={styles.warnIcon}>⚠️</Text>
-            <Text style={styles.warnTitle}>Wrong order</Text>
+            <Text style={styles.warnTitle}>Ekki rétt vara</Text>
             {wrongOrderProduct &&
               (() => {
                 const name =
@@ -698,9 +732,9 @@ export default function OrderDetail() {
                   <>
                     <Text style={styles.warnProduct}>{name}</Text>
                     <Text style={styles.warnBody}>
-                      This product is registered in the system but is{" "}
+                      Þessi vara er skráð í kerfinu en er{" "}
                       <Text style={styles.warnBold}>
-                        not part of this order
+                        ekki hluti af þessari pöntun
                       </Text>
                       .
                     </Text>
@@ -714,7 +748,7 @@ export default function OrderDetail() {
                 processingRef.current = false;
               }}
             >
-              <Text style={styles.warnButtonText}>Got it</Text>
+              <Text style={styles.warnButtonText}>Áfram</Text>
             </Pressable>
           </View>
         </View>
@@ -1122,6 +1156,28 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 17,
     fontWeight: "700",
+  },
+  scanToast: {
+    position: "absolute",
+    top: 26,
+    left: 20,
+    right: 20,
+    backgroundColor: "#1a1a1a",
+    borderRadius: 12,
+    paddingVertical: 13,
+    paddingHorizontal: 18,
+    zIndex: 999,
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+  },
+  scanToastText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
+    textAlign: "center",
   },
   noteBanner: {
     backgroundColor: "#FFFBE6",

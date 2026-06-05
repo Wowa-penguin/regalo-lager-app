@@ -124,16 +124,16 @@ export default function ProductsTab() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Products</Text>
+        <Text style={styles.headerTitle}>Vörur</Text>
         <Text style={styles.headerSub}>
-          {unregistered.length} without barcode
+          {unregistered.length} án strikamerkis
         </Text>
       </View>
 
       <View style={styles.searchRow}>
         <TextInput
           style={styles.searchInput}
-          placeholder="Search by name or ID…"
+          placeholder="Leita eftir nafni eða vörukóða"
           placeholderTextColor="#bbb"
           value={query}
           onChangeText={setQuery}
@@ -151,20 +151,36 @@ export default function ProductsTab() {
           keyboardShouldPersistTaps="handled"
         >
           <Pressable
-            style={[styles.categoryChip, !selectedCategory && styles.categoryChipActive]}
+            style={[
+              styles.categoryChip,
+              !selectedCategory && styles.categoryChipActive,
+            ]}
             onPress={() => setSelectedCategory("")}
           >
-            <Text style={[styles.categoryChipText, !selectedCategory && styles.categoryChipTextActive]}>
-              All
+            <Text
+              style={[
+                styles.categoryChipText,
+                !selectedCategory && styles.categoryChipTextActive,
+              ]}
+            >
+              Allt
             </Text>
           </Pressable>
           {categories.map((cat) => (
             <Pressable
               key={cat}
-              style={[styles.categoryChip, selectedCategory === cat && styles.categoryChipActive]}
+              style={[
+                styles.categoryChip,
+                selectedCategory === cat && styles.categoryChipActive,
+              ]}
               onPress={() => setSelectedCategory((c) => (c === cat ? "" : cat))}
             >
-              <Text style={[styles.categoryChipText, selectedCategory === cat && styles.categoryChipTextActive]}>
+              <Text
+                style={[
+                  styles.categoryChipText,
+                  selectedCategory === cat && styles.categoryChipTextActive,
+                ]}
+              >
                 {cat}
               </Text>
             </Pressable>
@@ -204,8 +220,8 @@ export default function ProductsTab() {
             <View style={styles.centered}>
               <Text style={styles.emptyText}>
                 {query || selectedCategory
-                  ? "No products match your filters."
-                  : "All products have a barcode."}
+                  ? "Engar vörur passa við síurnar þínar."
+                  : "Allar vörur eru með strikamerki"}
               </Text>
             </View>
           }

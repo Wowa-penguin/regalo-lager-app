@@ -129,14 +129,14 @@ export default function ScannedTab() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Scanned</Text>
-        <Text style={styles.headerSub}>{barcodes.length} registered</Text>
+        <Text style={styles.headerTitle}>Skannað</Text>
+        <Text style={styles.headerSub}>{barcodes.length} skráð</Text>
       </View>
 
       <View style={styles.searchRow}>
         <TextInput
           style={styles.searchInput}
-          placeholder="Search by name, ID or barcode…"
+          placeholder="Leita eftir nafni eða vörukóða"
           placeholderTextColor="#bbb"
           value={query}
           onChangeText={setQuery}
@@ -177,8 +177,8 @@ export default function ScannedTab() {
             <View style={styles.centered}>
               <Text style={styles.emptyText}>
                 {query
-                  ? "No results match your search."
-                  : "No barcodes registered yet."}
+                  ? "Engar niðurstöður passa við leitina þína."
+                  : "Engir strikamerki skráðir ennþá."}
               </Text>
             </View>
           }
