@@ -29,6 +29,7 @@ const EMPTY_MISSING: Record<string, number> = {};
 export default function OrderDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const invoiceNumber = Number(id);
+  const user = useStore((s) => s.user);
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -191,7 +192,7 @@ export default function OrderDetail() {
     setFinishing(true);
     setFinishError("");
     try {
-      await finishOrder(invoiceNumber);
+      await finishOrder(invoiceNumber, user.username);
       setOrder((o) => (o ? { ...o, finished: true } : o));
     } catch (e: unknown) {
       setFinishError(e instanceof Error ? e.message : "Failed to finish order");
@@ -412,7 +413,7 @@ export default function OrderDetail() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Pressable onPress={handleBackArrow}>
-          <Text style={styles.backText}>← Back</Text>
+          <Text style={styles.backText}>← Til baka</Text>
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>
           {order?.customer_name ?? `Pöntun #${id}`}

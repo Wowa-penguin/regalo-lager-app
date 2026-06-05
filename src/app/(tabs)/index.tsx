@@ -111,9 +111,9 @@ export default function Index() {
 
       if (blockedBy) {
         Alert.alert(
-          "Order in use",
-          `${blockedBy.name} is currently working on this order.`,
-          [{ text: "OK" }],
+          "Pöntun í notkun",
+          `Notandi "${blockedBy.name}" er að vinna í þessari pöntun núna.`,
+          [{ text: "Afram" }],
         );
         return;
       }
