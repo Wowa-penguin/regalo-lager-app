@@ -1,6 +1,7 @@
 import { updateBarcode } from "@/api/updateBarcode";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import { useProducts } from "@/hooks/useProducts";
+import { useZebraScanner } from "@/hooks/useZebraScanner";
 import useBarcodeStore from "@/store/useBarcodeStore";
 import useStore from "@/store/useStore";
 import { BarcodeMapping } from "@/types/barcode";
@@ -10,6 +11,8 @@ import { useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  NativeModules,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -19,6 +22,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import tabStyles from "../../styles/tabStyles";
+
+const USE_ZEBRA = Platform.OS === "android";
 
 type ScannedItem = BarcodeMapping & {
   productName: string;
@@ -84,6 +89,8 @@ export default function ScannedTab() {
     }
   };
 
+  useZebraScanner(!!editingItem, handleScanned);
+
   const renderItem = ({ item }: { item: ScannedItem }) => (
     <View style={tabStyles.card}>
       <View style={tabStyles.cardInfo}>
@@ -101,6 +108,8 @@ export default function ScannedTab() {
           processingRef.current = false;
           setSaveError("");
           setEditingItem(item);
+          console.log(Platform.OS === "android");
+          console.log(!!NativeModules.ZebraScan);
         }}
       >
         <Text style={styles.editButtonText}>Breyta</Text>
@@ -170,11 +179,29 @@ export default function ScannedTab() {
         </View>
       )}
 
-      <BarcodeScanner
-        visible={editingItem !== null}
-        onClose={() => setEditingItem(null)}
-        onScanned={handleScanned}
-      />
+      {USE_ZEBRA && editingItem && (
+        <View style={styles.scanActiveBanner}>
+          <Text style={styles.scanActiveText} numberOfLines={1}>
+            ⊙ {editingItem.productName}
+          </Text>
+          <Pressable
+            onPress={() => {
+              processingRef.current = false;
+              setEditingItem(null);
+            }}
+          >
+            <Text style={styles.scanActiveCancelText}>Hætta við</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {!USE_ZEBRA && (
+        <BarcodeScanner
+          visible={editingItem !== null}
+          onClose={() => setEditingItem(null)}
+          onScanned={handleScanned}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -197,5 +224,29 @@ const styles = StyleSheet.create({
     color: "#208AEF",
     fontSize: 15,
     fontWeight: "700",
+  },
+  scanActiveBanner: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "#208AEF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    gap: 12,
+  },
+  scanActiveText: {
+    flex: 1,
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  scanActiveCancelText: {
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

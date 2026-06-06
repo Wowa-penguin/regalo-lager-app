@@ -1,6 +1,7 @@
 import { createBarcode } from "@/api/createBarcode";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import { useProducts } from "@/hooks/useProducts";
+import { useZebraScanner } from "@/hooks/useZebraScanner";
 import useBarcodeStore from "@/store/useBarcodeStore";
 import useStore from "@/store/useStore";
 import { Product } from "@/types/product";
@@ -9,6 +10,7 @@ import { useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -19,6 +21,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import tabStyles from "../../styles/tabStyles";
+
+const USE_ZEBRA = Platform.OS === "android";
 
 export default function ProductsTab() {
   const user = useStore((s) => s.user);
@@ -77,6 +81,8 @@ export default function ProductsTab() {
       processingRef.current = false;
     }
   };
+
+  useZebraScanner(!!scanningProduct, handleScanned);
 
   const renderProduct = ({ item }: { item: Product }) => (
     <View style={tabStyles.card}>
@@ -211,11 +217,29 @@ export default function ProductsTab() {
         </View>
       )}
 
-      <BarcodeScanner
-        visible={scanningProduct !== null}
-        onClose={() => setScanningProduct(null)}
-        onScanned={handleScanned}
-      />
+      {USE_ZEBRA && scanningProduct && (
+        <View style={styles.scanActiveBanner}>
+          <Text style={styles.scanActiveText} numberOfLines={1}>
+            ⊙ {scanningProduct.name}
+          </Text>
+          <Pressable
+            onPress={() => {
+              processingRef.current = false;
+              setScanningProduct(null);
+            }}
+          >
+            <Text style={styles.scanActiveCancelText}>Hætta við</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {!USE_ZEBRA && (
+        <BarcodeScanner
+          visible={scanningProduct !== null}
+          onClose={() => setScanningProduct(null)}
+          onScanned={handleScanned}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -264,5 +288,29 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 15,
     fontWeight: "700",
+  },
+  scanActiveBanner: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "#208AEF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    gap: 12,
+  },
+  scanActiveText: {
+    flex: 1,
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  scanActiveCancelText: {
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });
