@@ -268,10 +268,15 @@ export default function OrderDetail() {
   };
 
   const handleFinish = async () => {
+    if (!order) return;
     setFinishing(true);
     setFinishError("");
     try {
-      await finishOrder(invoiceNumber, user.username);
+      const lines = (order.lines ?? []).map((l) => ({
+        line_id: l.id,
+        collected_qty: attributedPicks.get(l) ?? 0,
+      }));
+      await finishOrder(invoiceNumber, user.username, lines);
       setOrder((o) => (o ? { ...o, finished: true } : o));
     } catch (e: unknown) {
       setFinishError(e instanceof Error ? e.message : "Failed to finish order");
@@ -423,7 +428,11 @@ export default function OrderDetail() {
         onClose={() => setManualEntryTarget(null)}
         onDone={(count) => {
           if (manualEntryTarget) {
-            setItemPicked(invoiceNumber, manualEntryTarget.line.item_code, count);
+            setItemPicked(
+              invoiceNumber,
+              manualEntryTarget.line.item_code,
+              count,
+            );
             if ((missingCounts[manualEntryTarget.line.item_code] ?? 0) > 0) {
               setItemMissing(
                 invoiceNumber,
@@ -437,7 +446,11 @@ export default function OrderDetail() {
         onMissing={(count) => {
           if (manualEntryTarget) {
             const missing = manualEntryTarget.line.quantity - count;
-            setItemPicked(invoiceNumber, manualEntryTarget.line.item_code, count);
+            setItemPicked(
+              invoiceNumber,
+              manualEntryTarget.line.item_code,
+              count,
+            );
             setItemMissing(
               invoiceNumber,
               manualEntryTarget.line.item_code,

@@ -249,6 +249,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#E2DAD3",
     backgroundColor: "#fff",
+    minHeight: 60,
+    maxHeight: 60,
   },
   categoryRowContent: {
     flexDirection: "row",
