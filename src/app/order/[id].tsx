@@ -1,21 +1,23 @@
 import { createBarcode } from "@/api/createBarcode";
 import { deleteInvoiceNotes } from "@/api/fetchInvoiceNotes";
 import { fetchOrder } from "@/api/fetchOrder";
-import { fetchProducts } from "@/api/fetchProducts";
 import { finishOrder } from "@/api/finishOrder";
+import AssignBarcodeModal from "@/components/order/AssignBarcodeModal";
+import ManualEntryModal from "@/components/order/ManualEntryModal";
+import OrderLineCard from "@/components/order/OrderLineCard";
+import OverpackWarningModal from "@/components/order/OverpackWarningModal";
+import WrongOrderModal from "@/components/order/WrongOrderModal";
+import { useProducts } from "@/hooks/useProducts";
 import { useZebraScanner } from "@/hooks/useZebraScanner";
 import useBarcodeStore from "@/store/useBarcodeStore";
 import useStore from "@/store/useStore";
 import { Order, OrderLine } from "@/types/order";
-import { Product } from "@/types/product";
 import { router, useLocalSearchParams } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
   FlatList,
-  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -34,13 +36,16 @@ export default function OrderDetail() {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [products, setProducts] = useState<Product[]>([]);
   const processingRef = useRef(false);
 
+  const { products } = useProducts();
+
+  // Toast
   const [toastMessage, setToastMessage] = useState("");
   const toastAnim = useRef(new Animated.Value(-80)).current;
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Modal state
   const [pendingBarcode, setPendingBarcode] = useState<string | null>(null);
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState("");
@@ -50,12 +55,10 @@ export default function OrderDetail() {
   } | null>(null);
   const [finishing, setFinishing] = useState(false);
   const [finishError, setFinishError] = useState("");
-
-  const [manualEntry, setManualEntry] = useState<{
+  const [manualEntryTarget, setManualEntryTarget] = useState<{
     line: OrderLine;
-    count: number;
+    initialCount: number;
   } | null>(null);
-
   const [overpackWarning, setOverpackWarning] = useState<{
     name: string;
     itemCode: string;
@@ -87,12 +90,6 @@ export default function OrderDetail() {
   }, [id]);
 
   useEffect(() => {
-    fetchProducts()
-      .then(setProducts)
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
     return () => {
       deleteInvoiceNotes(invoiceNumber).catch(() => {});
       if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -117,6 +114,85 @@ export default function OrderDetail() {
       }).start();
     }, 1500);
   };
+
+  const productMap = useMemo(
+    () => new Map(products.map((p) => [p.product_id, p])),
+    [products],
+  );
+
+  const itemTotals = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const line of order?.lines ?? []) {
+      map.set(line.item_code, (map.get(line.item_code) ?? 0) + line.quantity);
+    }
+    return map;
+  }, [order?.lines]);
+
+  const attributedPicks = useMemo((): Map<OrderLine, number> => {
+    if (!order?.lines) return new Map();
+    const groups = new Map<string, OrderLine[]>();
+    for (const line of order.lines) {
+      if (!groups.has(line.item_code)) groups.set(line.item_code, []);
+      groups.get(line.item_code)!.push(line);
+    }
+    const result = new Map<OrderLine, number>();
+    for (const [itemCode, group] of groups) {
+      let remaining = pickedCounts[itemCode] ?? 0;
+      for (const line of group) {
+        const attributed = Math.min(remaining, line.quantity);
+        result.set(line, attributed);
+        remaining -= attributed;
+      }
+    }
+    return result;
+  }, [order?.lines, pickedCounts]);
+
+  const lines = useMemo(() => {
+    const priority = (line: OrderLine) => {
+      const picked = attributedPicks.get(line) ?? 0;
+      const missing = missingCounts[line.item_code] ?? 0;
+      if (picked >= line.quantity) return 1;
+      if (missing > 0 && picked === 0) return 3;
+      if (missing > 0 && picked > 0) return 2;
+      return 0;
+    };
+    return [...(order?.lines ?? [])].sort((a, b) => {
+      const pa = priority(a);
+      const pb = priority(b);
+      if (pa !== pb) return pa - pb;
+      const pA = productMap.get(a.item_code);
+      const pB = productMap.get(b.item_code);
+      const byCategory = (pA?.category ?? "").localeCompare(
+        pB?.category ?? "",
+        undefined,
+        { sensitivity: "base" },
+      );
+      if (byCategory !== 0) return byCategory;
+      const nameA = pA?.name || a.description || a.item_code;
+      const nameB = pB?.name || b.description || b.item_code;
+      return nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
+    });
+  }, [order?.lines, productMap, attributedPicks, missingCounts]);
+
+  const mappedProductIds = useMemo(
+    () => new Set(barcodes.map((b) => b.product_id)),
+    [barcodes],
+  );
+
+  const assignableLines = useMemo(
+    () =>
+      lines.filter(
+        (l) =>
+          (pickedCounts[l.item_code] ?? 0) === 0 &&
+          !mappedProductIds.has(l.item_code),
+      ),
+    [lines, pickedCounts, mappedProductIds],
+  );
+
+  const completedLines = lines.filter(
+    (l) => (attributedPicks.get(l) ?? 0) >= l.quantity,
+  ).length;
+  const allDone = lines.length > 0 && completedLines === lines.length;
 
   const pickItem = (line: OrderLine) => {
     const current = pickedCounts[line.item_code] ?? 0;
@@ -201,212 +277,27 @@ export default function OrderDetail() {
     }
   };
 
-  const productMap = useMemo(
-    () => new Map(products.map((p) => [p.product_id, p])),
-    [products],
-  );
-
-  // Total quantity per item_code across all duplicate lines
-  const itemTotals = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const line of order?.lines ?? []) {
-      map.set(line.item_code, (map.get(line.item_code) ?? 0) + line.quantity);
-    }
-    return map;
-  }, [order?.lines]);
-
-  // Distribute the shared pickedCounts counter across duplicate lines in order:
-  // Line A fills first, then Line B gets the overflow, etc.
-  const attributedPicks = useMemo((): Map<OrderLine, number> => {
-    if (!order?.lines) return new Map();
-    const groups = new Map<string, OrderLine[]>();
-    for (const line of order.lines) {
-      if (!groups.has(line.item_code)) groups.set(line.item_code, []);
-      groups.get(line.item_code)!.push(line);
-    }
-    const result = new Map<OrderLine, number>();
-    for (const [itemCode, group] of groups) {
-      let remaining = pickedCounts[itemCode] ?? 0;
-      for (const line of group) {
-        const attributed = Math.min(remaining, line.quantity);
-        result.set(line, attributed);
-        remaining -= attributed;
-      }
-    }
-    return result;
-  }, [order?.lines, pickedCounts]);
-
-  const lines = useMemo(() => {
-    const priority = (line: OrderLine) => {
-      const picked = attributedPicks.get(line) ?? 0;
-      const missing = missingCounts[line.item_code] ?? 0;
-      if (picked >= line.quantity) return 1;
-      if (missing > 0 && picked === 0) return 3;
-      if (missing > 0 && picked > 0) return 2;
-      return 0;
-    };
-    return [...(order?.lines ?? [])].sort((a, b) => {
-      const pa = priority(a);
-      const pb = priority(b);
-      if (pa !== pb) return pa - pb;
-      const pA = productMap.get(a.item_code);
-      const pB = productMap.get(b.item_code);
-      const byCategory = (pA?.category ?? "").localeCompare(
-        pB?.category ?? "",
-        undefined,
-        { sensitivity: "base" },
-      );
-      if (byCategory !== 0) return byCategory;
-      const nameA = pA?.name || a.description || a.item_code;
-      const nameB = pB?.name || b.description || b.item_code;
-      return nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
-    });
-  }, [order?.lines, productMap, attributedPicks, missingCounts]);
-
-  const mappedProductIds = useMemo(
-    () => new Set(barcodes.map((b) => b.product_id)),
-    [barcodes],
-  );
-
-  const assignableLines = useMemo(
-    () =>
-      lines.filter(
-        (l) =>
-          (pickedCounts[l.item_code] ?? 0) === 0 &&
-          !mappedProductIds.has(l.item_code),
-      ),
-    [lines, pickedCounts, mappedProductIds],
-  );
-
-  const completedLines = lines.filter(
-    (l) => (attributedPicks.get(l) ?? 0) >= l.quantity,
-  ).length;
-  const allDone = lines.length > 0 && completedLines === lines.length;
-
-  const renderLine = ({ item }: { item: OrderLine }) => {
-    const picked = attributedPicks.get(item) ?? 0;
-    const missing = missingCounts[item.item_code] ?? 0;
-    const isComplete = picked >= item.quantity;
-    const isPartial = picked > 0 && !isComplete;
-    const isMissingAll = missing > 0 && picked === 0;
-    const isMissingPartial = missing > 0 && picked > 0 && !isComplete;
-
-    return (
-      <View
-        style={[
-          styles.lineCard,
-          isPartial && styles.lineCardPartial,
-          isMissingPartial && styles.lineCardMissingPartial,
-          isMissingAll && styles.lineCardMissingAll,
-          isComplete && styles.lineCardComplete,
-        ]}
-      >
-        <View style={styles.lineLeft}>
-          <Pressable
-            onPress={() =>
-              setManualEntry({
-                line: item,
-                count: attributedPicks.get(item) ?? 0,
-              })
-            }
-            hitSlop={6}
-            style={[
-              styles.statusRing,
-              isComplete && styles.statusRingComplete,
-              isPartial && styles.statusRingPartial,
-            ]}
-          >
-            <Text
-              style={[
-                styles.statusIcon,
-                isComplete && styles.statusIconComplete,
-                isPartial && styles.statusIconPartial,
-              ]}
-            >
-              {isComplete ? "✓" : isPartial ? "…" : "+"}
-            </Text>
-          </Pressable>
-          <View style={styles.lineInfo}>
-            <Text
-              style={[
-                styles.description,
-                isComplete && styles.descriptionComplete,
-              ]}
-            >
-              {item.description || item.item_code}
-            </Text>
-
-            {(() => {
-              const qty = productMap.get(item.item_code)?.total_quantity;
-              return qty != null ? (
-                <Text style={styles.itemCode}>
-                  {item.item_code} - magn: {qty}
-                </Text>
-              ) : (
-                <Text style={styles.itemCode}>{item.item_code}</Text>
-              );
-            })()}
-          </View>
-        </View>
-        <View style={styles.lineRight}>
-          <Text
-            style={[
-              styles.progress,
-              isComplete && styles.progressComplete,
-              isPartial && styles.progressPartial,
-            ]}
-          >
-            {picked}/{item.quantity} {item.unit}
-          </Text>
-          {missing > 0 && (
-            <View style={styles.missingBadge}>
-              <Text style={styles.missingBadgeText}>{missing} vantar</Text>
-            </View>
-          )}
-          <Pressable
-            onPress={() =>
-              WebBrowser.openBrowserAsync(
-                `https://regalo.is/leit?q=${encodeURIComponent(item.item_code)}&page=1&pageIndex=0&pageSize=25`,
-              )
-            }
-            hitSlop={8}
-          >
-            <Text style={styles.linkIcon}>↗</Text>
-          </Pressable>
-          <Text style={styles.checkmark}>
-            {mappedProductIds.has(item.item_code) ? "✅" : "❌"}
-          </Text>
-        </View>
-      </View>
-    );
-  };
-
-  const renderAssignItem = ({ item }: { item: OrderLine }) => {
-    const product = productMap.get(item.item_code);
-    return (
-      <Pressable
-        style={styles.assignCard}
-        onPress={() => handleAssign(item)}
-        disabled={assigning}
-      >
-        <Text style={styles.assignDescription}>
-          {product?.name || item.description || item.item_code}
-        </Text>
-        <Text style={styles.assignItemCode}>
-          {item.item_code}
-          {product?.category ? ` · ${product.category}` : ""}
-        </Text>
-      </Pressable>
-    );
-  };
-
   const handleBackArrow = async () => {
     const res = await deleteInvoiceNotes(invoiceNumber);
     if (res.status === "deleted") {
       router.back();
-    } else {
-      // todo: handle Error if status is not deleted
     }
+  };
+
+  const closePendingBarcode = () => {
+    setPendingBarcode(null);
+    setAssignError("");
+    processingRef.current = false;
+  };
+
+  const closeOverpack = () => {
+    setOverpackWarning(null);
+    processingRef.current = false;
+  };
+
+  const closeWrongOrder = () => {
+    setWrongOrderProduct(null);
+    processingRef.current = false;
   };
 
   return (
@@ -464,6 +355,7 @@ export default function OrderDetail() {
               <Text style={styles.scannerBadge}>⊙ Skanni virkur</Text>
             )}
           </View>
+
           {!!order.description_text_2 && (
             <View style={styles.noteBanner}>
               <Text style={styles.noteText}>{order.description_text_2}</Text>
@@ -475,7 +367,21 @@ export default function OrderDetail() {
             keyExtractor={(item, index) =>
               item.id != null ? String(item.id) : `${item.item_code}-${index}`
             }
-            renderItem={renderLine}
+            renderItem={({ item }) => (
+              <OrderLineCard
+                line={item}
+                picked={attributedPicks.get(item) ?? 0}
+                missing={missingCounts[item.item_code] ?? 0}
+                isBarcodeMapped={mappedProductIds.has(item.item_code)}
+                product={productMap.get(item.item_code)}
+                onPressStatus={() =>
+                  setManualEntryTarget({
+                    line: item,
+                    initialCount: attributedPicks.get(item) ?? 0,
+                  })
+                }
+              />
+            )}
             contentContainerStyle={styles.list}
           />
 
@@ -487,7 +393,6 @@ export default function OrderDetail() {
         </>
       ) : null}
 
-      {/* Scan confirmation toast */}
       <Animated.View
         style={[styles.scanToast, { transform: [{ translateY: toastAnim }] }]}
         pointerEvents="none"
@@ -497,263 +402,53 @@ export default function OrderDetail() {
         </Text>
       </Animated.View>
 
-      {/* Unknown barcode — assign to product */}
-      <Modal
-        visible={pendingBarcode !== null}
-        animationType="slide"
-        transparent
-        onRequestClose={() => {
-          setPendingBarcode(null);
-          setAssignError("");
-          processingRef.current = false;
+      <AssignBarcodeModal
+        pendingBarcode={pendingBarcode}
+        assigning={assigning}
+        assignError={assignError}
+        assignableLines={assignableLines}
+        productMap={productMap}
+        onClose={closePendingBarcode}
+        onAssign={handleAssign}
+      />
+
+      <ManualEntryModal
+        entry={manualEntryTarget}
+        onClose={() => setManualEntryTarget(null)}
+        onDone={(count) => {
+          if (manualEntryTarget) {
+            setItemPicked(invoiceNumber, manualEntryTarget.line.item_code, count);
+            if ((missingCounts[manualEntryTarget.line.item_code] ?? 0) > 0) {
+              setItemMissing(
+                invoiceNumber,
+                manualEntryTarget.line.item_code,
+                Math.max(0, manualEntryTarget.line.quantity - count),
+              );
+            }
+          }
+          setManualEntryTarget(null);
         }}
-      >
-        <View style={styles.modalOverlay}>
-          <SafeAreaView edges={["bottom"]} style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Óþekkt strikamerki</Text>
-            <Text style={styles.modalBarcode}>{pendingBarcode}</Text>
-            <Text style={styles.modalSubtitle}>Hvaða vara er þetta?</Text>
-            {!!assignError && (
-              <Text style={styles.assignError}>{assignError}</Text>
-            )}
-
-            <FlatList
-              data={assignableLines}
-              keyExtractor={(item, index) =>
-                item.id != null ? String(item.id) : `${item.item_code}-${index}`
-              }
-              renderItem={renderAssignItem}
-              style={styles.assignList}
-              contentContainerStyle={{ gap: 8 }}
-              ListEmptyComponent={
-                <Text style={styles.assignEmptyText}>
-                  Allar vörur hafa þegar verið skannaðar.
-                </Text>
-              }
-            />
-
-            <Pressable
-              style={styles.cancelButton}
-              onPress={() => {
-                setPendingBarcode(null);
-                setAssignError("");
-                processingRef.current = false;
-              }}
-              disabled={assigning}
-            >
-              {assigning ? (
-                <ActivityIndicator color="#888" />
-              ) : (
-                <Text style={styles.cancelText}>Hætta</Text>
-              )}
-            </Pressable>
-          </SafeAreaView>
-        </View>
-      </Modal>
-
-      {/* Manual entry */}
-      <Modal
-        visible={manualEntry !== null}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setManualEntry(null)}
-      >
-        <View style={styles.modalOverlay}>
-          <SafeAreaView edges={["bottom"]} style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>
-              {manualEntry?.line.description || manualEntry?.line.item_code}
-            </Text>
-            <Text style={styles.modalBarcode}>
-              {manualEntry?.line.item_code}
-            </Text>
-            <Text style={styles.modalSubtitle}>
-              Required: {manualEntry?.line.quantity} {manualEntry?.line.unit}
-            </Text>
-
-            <View style={styles.counterRow}>
-              <Pressable
-                style={[
-                  styles.counterBtn,
-                  (manualEntry?.count ?? 0) <= 0 && styles.counterBtnDisabled,
-                ]}
-                onPress={() =>
-                  setManualEntry(
-                    (e) => e && { ...e, count: Math.max(0, e.count - 1) },
-                  )
-                }
-                disabled={(manualEntry?.count ?? 0) <= 0}
-              >
-                <Text style={styles.counterBtnText}>−</Text>
-              </Pressable>
-
-              <Text style={styles.counterValue}>{manualEntry?.count ?? 0}</Text>
-
-              <Pressable
-                style={[
-                  styles.counterBtn,
-                  (manualEntry?.count ?? 0) >=
-                    (manualEntry?.line.quantity ?? 0) &&
-                    styles.counterBtnDisabled,
-                ]}
-                onPress={() =>
-                  setManualEntry(
-                    (e) =>
-                      e && {
-                        ...e,
-                        count: Math.min(e.line.quantity, e.count + 1),
-                      },
-                  )
-                }
-                disabled={
-                  (manualEntry?.count ?? 0) >= (manualEntry?.line.quantity ?? 0)
-                }
-              >
-                <Text style={styles.counterBtnText}>+</Text>
-              </Pressable>
-            </View>
-
-            <Pressable
-              style={styles.doneButton}
-              onPress={() => {
-                if (manualEntry) {
-                  setItemPicked(
-                    invoiceNumber,
-                    manualEntry.line.item_code,
-                    manualEntry.count,
-                  );
-                  if ((missingCounts[manualEntry.line.item_code] ?? 0) > 0) {
-                    setItemMissing(
-                      invoiceNumber,
-                      manualEntry.line.item_code,
-                      Math.max(
-                        0,
-                        manualEntry.line.quantity - manualEntry.count,
-                      ),
-                    );
-                  }
-                }
-                setManualEntry(null);
-              }}
-            >
-              <Text style={styles.doneButtonText}>Búið</Text>
-            </Pressable>
-
-            <Pressable
-              style={styles.missingButton}
-              onPress={() => {
-                if (manualEntry) {
-                  const missing = manualEntry.line.quantity - manualEntry.count;
-                  setItemPicked(
-                    invoiceNumber,
-                    manualEntry.line.item_code,
-                    manualEntry.count,
-                  );
-                  setItemMissing(
-                    invoiceNumber,
-                    manualEntry.line.item_code,
-                    missing > 0 ? missing : 0,
-                  );
-                }
-                setManualEntry(null);
-              }}
-            >
-              <Text style={styles.missingButtonText}>Vantar vörur</Text>
-            </Pressable>
-
-            <Pressable
-              style={styles.cancelButton}
-              onPress={() => setManualEntry(null)}
-            >
-              <Text style={styles.cancelText}>Hætta</Text>
-            </Pressable>
-          </SafeAreaView>
-        </View>
-      </Modal>
-
-      {/* Overpack warning */}
-      <Modal
-        visible={overpackWarning !== null}
-        animationType="fade"
-        transparent
-        onRequestClose={() => {
-          setOverpackWarning(null);
-          processingRef.current = false;
+        onMissing={(count) => {
+          if (manualEntryTarget) {
+            const missing = manualEntryTarget.line.quantity - count;
+            setItemPicked(invoiceNumber, manualEntryTarget.line.item_code, count);
+            setItemMissing(
+              invoiceNumber,
+              manualEntryTarget.line.item_code,
+              missing > 0 ? missing : 0,
+            );
+          }
+          setManualEntryTarget(null);
         }}
-      >
-        <View style={styles.warnOverlay}>
-          <View style={styles.warnSheet}>
-            <Text style={styles.warnIcon}>⚠️</Text>
-            <Text style={styles.warnTitle}>Nú þegar allt valið</Text>
-            {overpackWarning && (
-              <>
-                <Text style={styles.warnProduct}>{overpackWarning.name}</Text>
-                <Text style={styles.warnBody}>
-                  Þú hefur þegar skannað{" "}
-                  <Text style={styles.warnBold}>
-                    {overpackWarning.picked} of {overpackWarning.quantity}{" "}
-                    {overpackWarning.unit}
-                  </Text>{" "}
-                  Fyrir þessa vöru.{"\n"}Ekki bæta meiru við pöntunina.
-                </Text>
-              </>
-            )}
-            <Pressable
-              style={styles.warnButton}
-              onPress={() => {
-                setOverpackWarning(null);
-                processingRef.current = false;
-              }}
-            >
-              <Text style={styles.warnButtonText}>Áfram</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-      {/* Wrong order — product known but not in this order */}
-      <Modal
-        visible={wrongOrderProduct !== null}
-        animationType="fade"
-        transparent
-        onRequestClose={() => {
-          setWrongOrderProduct(null);
-          processingRef.current = false;
-        }}
-      >
-        <View style={styles.warnOverlay}>
-          <View style={styles.warnSheet}>
-            <Text style={styles.warnIcon}>⚠️</Text>
-            <Text style={styles.warnTitle}>Ekki rétt vara</Text>
-            {wrongOrderProduct &&
-              (() => {
-                const name =
-                  products.find(
-                    (p) => p.product_id === wrongOrderProduct.productId,
-                  )?.name || wrongOrderProduct.productId;
-                return (
-                  <>
-                    <Text style={styles.warnProduct}>{name}</Text>
-                    <Text style={styles.warnBody}>
-                      Þessi vara er skráð í kerfinu en er{" "}
-                      <Text style={styles.warnBold}>
-                        ekki hluti af þessari pöntun
-                      </Text>
-                      .
-                    </Text>
-                  </>
-                );
-              })()}
-            <Pressable
-              style={styles.warnButton}
-              onPress={() => {
-                setWrongOrderProduct(null);
-                processingRef.current = false;
-              }}
-            >
-              <Text style={styles.warnButtonText}>Áfram</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+      />
+
+      <OverpackWarningModal warning={overpackWarning} onClose={closeOverpack} />
+
+      <WrongOrderModal
+        wrongProduct={wrongOrderProduct}
+        products={products}
+        onClose={closeWrongOrder}
+      />
     </SafeAreaView>
   );
 }
@@ -855,308 +550,17 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 10,
   },
-  lineCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#E2DAD3",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    elevation: 1,
-    minHeight: 72,
-  },
-  lineCardComplete: {
-    backgroundColor: "#F0FFF4",
-    borderColor: "#C3E6CB",
-  },
-  lineCardPartial: {
-    backgroundColor: "#EBF5FF",
-    borderColor: "#BEE3F8",
-  },
-  lineCardMissingPartial: {
-    backgroundColor: "#FFFDE7",
-    borderColor: "#FFE082",
-  },
-  lineCardMissingAll: {
-    backgroundColor: "#FFF0F0",
-    borderColor: "#F5C6CB",
-  },
-  lineLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    flex: 1,
-  },
-  statusRing: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 2,
-    borderColor: "#D0D0D0",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  statusRingComplete: {
-    backgroundColor: "#27AE60",
-    borderColor: "#27AE60",
-  },
-  statusRingPartial: {
-    borderColor: "#208AEF",
-  },
-  statusIcon: {
-    fontSize: 15,
-    color: "#C0C0C0",
-  },
-  statusIconComplete: {
-    color: "#fff",
-    fontWeight: "700",
-  },
-  statusIconPartial: {
-    color: "#208AEF",
-    fontWeight: "700",
-  },
-  lineInfo: {
-    flex: 1,
-    gap: 3,
-  },
-  description: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1a1a1a",
-    lineHeight: 22,
-  },
-  descriptionComplete: {
-    color: "#27AE60",
-  },
-  itemCode: {
-    fontSize: 12,
-    color: "#aaa",
-  },
-  lineRight: {
-    alignItems: "flex-end",
-    gap: 6,
-    marginLeft: 8,
-  },
-  progress: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#C0C0C0",
-    flexShrink: 0,
-  },
-  progressComplete: {
-    color: "#27AE60",
-  },
-  progressPartial: {
-    color: "#208AEF",
-  },
-  linkIcon: {
-    fontSize: 16,
-    color: "#208AEF",
-    fontWeight: "600",
-    paddingVertical: 4,
-    paddingHorizontal: 4,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  warnOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    paddingHorizontal: 24,
-    paddingBottom: 80,
-  },
-  modalSheet: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: 24,
+  noteBanner: {
+    backgroundColor: "#FFFBE6",
+    paddingVertical: 10,
     paddingHorizontal: 20,
-    paddingBottom: 20,
-    maxHeight: "80%",
+    borderBottomWidth: 1,
+    borderBottomColor: "#FFE58F",
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1a1a1a",
-    marginBottom: 4,
-  },
-  modalBarcode: {
+  noteText: {
     fontSize: 14,
-    color: "#888",
-    fontFamily: "monospace",
-    marginBottom: 16,
-  },
-  modalSubtitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#555",
-    marginBottom: 12,
-  },
-  assignList: {
-    flexGrow: 0,
-  },
-  assignEmptyText: {
-    fontSize: 15,
-    color: "#aaa",
-    textAlign: "center",
-    paddingVertical: 20,
-  },
-  assignError: {
-    color: "#C0392B",
-    fontSize: 14,
-    textAlign: "center",
-    marginBottom: 6,
-  },
-  assignCard: {
-    backgroundColor: "#F7F5F2",
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#E2DAD3",
-  },
-  assignDescription: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1a1a1a",
-  },
-  assignItemCode: {
-    fontSize: 12,
-    color: "#aaa",
-    marginTop: 3,
-  },
-  cancelButton: {
-    marginTop: 16,
-    alignItems: "center",
-    paddingVertical: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E2DAD3",
-  },
-  cancelText: {
-    fontSize: 16,
-    color: "#888",
-    fontWeight: "600",
-  },
-  counterRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 32,
-    paddingVertical: 12,
-  },
-  counterBtn: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#208AEF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  counterBtnDisabled: {
-    backgroundColor: "#D0D0D0",
-  },
-  counterBtnText: {
-    color: "#fff",
-    fontSize: 30,
-    fontWeight: "600",
-    lineHeight: 34,
-  },
-  counterValue: {
-    fontSize: 52,
-    fontWeight: "700",
-    color: "#1a1a1a",
-    minWidth: 72,
-    textAlign: "center",
-  },
-  doneButton: {
-    backgroundColor: "#208AEF",
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: "center",
-    width: "100%",
-    marginTop: 4,
-  },
-  doneButtonText: {
-    color: "#fff",
-    fontSize: 17,
-    fontWeight: "700",
-  },
-  missingButton: {
-    borderWidth: 1.5,
-    borderColor: "#C0392B",
-    borderRadius: 12,
-    paddingVertical: 15,
-    alignItems: "center",
-    width: "100%",
-  },
-  missingButtonText: {
-    color: "#C0392B",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  missingBadge: {
-    backgroundColor: "#FDECEA",
-    borderRadius: 6,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    alignSelf: "flex-end",
-  },
-  missingBadgeText: {
-    color: "#C0392B",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  warnSheet: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    padding: 28,
-    alignItems: "center",
-    gap: 10,
-  },
-  warnIcon: {
-    fontSize: 44,
-  },
-  warnTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1a1a1a",
-    textAlign: "center",
-  },
-  warnProduct: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#555",
-    textAlign: "center",
-  },
-  warnBody: {
-    fontSize: 15,
-    color: "#666",
-    textAlign: "center",
-    lineHeight: 22,
-  },
-  warnBold: {
-    fontWeight: "700",
-    color: "#C0392B",
-  },
-  warnButton: {
-    marginTop: 8,
-    backgroundColor: "#C0392B",
-    borderRadius: 12,
-    paddingHorizontal: 36,
-    paddingVertical: 15,
-    width: "100%",
-    alignItems: "center",
-  },
-  warnButtonText: {
-    color: "#fff",
-    fontSize: 17,
-    fontWeight: "700",
+    color: "#7C5800",
+    fontWeight: "500",
   },
   scanToast: {
     position: "absolute",
@@ -1179,20 +583,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     textAlign: "center",
-  },
-  noteBanner: {
-    backgroundColor: "#FFFBE6",
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#FFE58F",
-  },
-  noteText: {
-    fontSize: 14,
-    color: "#7C5800",
-    fontWeight: "500",
-  },
-  checkmark: {
-    fontSize: 10,
   },
 });
