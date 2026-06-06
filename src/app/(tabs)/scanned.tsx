@@ -11,7 +11,6 @@ import { useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  NativeModules,
   Platform,
   Pressable,
   RefreshControl,
@@ -108,8 +107,6 @@ export default function ScannedTab() {
           processingRef.current = false;
           setSaveError("");
           setEditingItem(item);
-          console.log(Platform.OS === "android");
-          console.log(!!NativeModules.ZebraScan);
         }}
       >
         <Text style={styles.editButtonText}>Breyta</Text>

@@ -102,7 +102,7 @@ export default function ProductsTab() {
           setScanningProduct(item);
         }}
       >
-        <Text style={styles.scanButtonText}>Scan</Text>
+        <Text style={styles.scanButtonText}>Skrá</Text>
       </Pressable>
     </View>
   );
