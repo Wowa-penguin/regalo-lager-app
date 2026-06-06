@@ -2,6 +2,7 @@ import { createBarcode } from "@/api/createBarcode";
 import { deleteInvoiceNotes } from "@/api/fetchInvoiceNotes";
 import { fetchOrder } from "@/api/fetchOrder";
 import { finishOrder } from "@/api/finishOrder";
+import BarcodeScanner from "@/components/BarcodeScanner";
 import AssignBarcodeModal from "@/components/order/AssignBarcodeModal";
 import ManualEntryModal from "@/components/order/ManualEntryModal";
 import OrderLineCard from "@/components/order/OrderLineCard";
@@ -18,6 +19,7 @@ import {
   ActivityIndicator,
   Animated,
   FlatList,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -66,6 +68,7 @@ export default function OrderDetail() {
     quantity: number;
     unit: string;
   } | null>(null);
+  const [iosScanOpen, setIosScanOpen] = useState(false);
 
   const pickedCounts = useStore(
     (s) => s.pickedOrders[invoiceNumber] ?? EMPTY_COUNTS,
@@ -351,7 +354,7 @@ export default function OrderDetail() {
                 ? "✓ Allir vörur komnar!"
                 : `${completedLines} af ${lines.length} eftir`}
             </Text>
-            {!allDone && (
+            {!allDone && Platform.OS === "android" && (
               <Text style={styles.scannerBadge}>⊙ Skanni virkur</Text>
             )}
           </View>
@@ -382,7 +385,10 @@ export default function OrderDetail() {
                 }
               />
             )}
-            contentContainerStyle={styles.list}
+            contentContainerStyle={[
+              styles.list,
+              Platform.OS !== "android" && !allDone && { paddingBottom: 110 },
+            ]}
           />
 
           {!!finishError && (
@@ -449,6 +455,26 @@ export default function OrderDetail() {
         products={products}
         onClose={closeWrongOrder}
       />
+
+      {Platform.OS !== "android" && (
+        <BarcodeScanner
+          visible={iosScanOpen}
+          onClose={() => setIosScanOpen(false)}
+          onScanned={(data) => {
+            setIosScanOpen(false);
+            handleScanned(data);
+          }}
+        />
+      )}
+
+      {Platform.OS !== "android" && order && !order.finished && !allDone && (
+        <View style={styles.fabContainer} pointerEvents="box-none">
+          <Pressable style={styles.fab} onPress={() => setIosScanOpen(true)}>
+            <Text style={styles.fabIcon}>⊙</Text>
+            <Text style={styles.fabLabel}>Skanna</Text>
+          </Pressable>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -545,6 +571,36 @@ const styles = StyleSheet.create({
     color: "#27AE60",
     textAlign: "center",
     marginTop: 2,
+  },
+  fabContainer: {
+    position: "absolute",
+    bottom: 36,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  fab: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#208AEF",
+    borderRadius: 32,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  fabIcon: {
+    fontSize: 20,
+    color: "#fff",
+  },
+  fabLabel: {
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: "700",
   },
   list: {
     padding: 14,

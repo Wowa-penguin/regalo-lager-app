@@ -103,7 +103,7 @@ export default function ScannedTab() {
           setEditingItem(item);
         }}
       >
-        <Text style={styles.editButtonText}>Edit</Text>
+        <Text style={styles.editButtonText}>Breyta</Text>
       </Pressable>
     </View>
   );

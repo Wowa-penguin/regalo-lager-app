@@ -1,5 +1,7 @@
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   DeviceEventEmitter,
   Easing,
@@ -13,6 +15,8 @@ import {
 } from "react-native";
 
 const DEBOUNCE_MS = 700;
+const USE_ZEBRA =
+  Platform.OS === "android" && !!NativeModules.ZebraScan;
 
 interface Props {
   visible: boolean;
@@ -31,26 +35,29 @@ export default function BarcodeScanner({
   const lastScanRef = useRef<{ code: string; time: number } | null>(null);
   const hasScannedRef = useRef(false);
   const [ready, setReady] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [torchOn, setTorchOn] = useState(false);
+  const [zoom, setZoom] = useState(0);
 
   useEffect(() => {
     if (!visible) {
       lastScanRef.current = null;
       hasScannedRef.current = false;
       setReady(false);
+      setTorchOn(false);
+      setZoom(0);
       return;
     }
 
     lastScanRef.current = null;
     hasScannedRef.current = false;
-    setReady(false);
 
-    if (Platform.OS !== "android" || !NativeModules.ZebraScan) {
+    if (!USE_ZEBRA) {
       setReady(true);
       return;
     }
 
     NativeModules.ZebraScan.startListening();
-    // Small delay so DataWedge profile is applied before we show "ready"
     const t = setTimeout(() => setReady(true), 400);
 
     const sub = DeviceEventEmitter.addListener("ZebraScan", (barcode: string) => {
@@ -70,9 +77,9 @@ export default function BarcodeScanner({
     };
   }, [visible]);
 
-  // Pulse animation for the scan beam icon
+  // Pulse animation — Zebra UI only
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || !USE_ZEBRA) return;
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
@@ -93,35 +100,132 @@ export default function BarcodeScanner({
     return () => loop.stop();
   }, [visible]);
 
+  const handleBarcodeScanned = ({ data }: { data: string }) => {
+    if (hasScannedRef.current) return;
+    const now = Date.now();
+    const last = lastScanRef.current;
+    if (last && last.code === data && now - last.time < DEBOUNCE_MS) return;
+    lastScanRef.current = { code: data, time: now };
+    hasScannedRef.current = true;
+    onScanned(data);
+  };
+
+  const stepZoom = (delta: number) => {
+    setZoom((z) => Math.round(Math.min(0.8, Math.max(0, z + delta)) * 10) / 10);
+  };
+
+  // zoom 0.0–0.8 in 0.1 steps → displayed as 1×–9×
+  const zoomLabel = `${Math.round(zoom * 10) + 1}×`;
+
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.container}>
         <Pressable style={styles.closeButton} onPress={onClose}>
-          <Text style={styles.closeText}>✕ Close</Text>
+          <Text style={styles.closeText}>✕ Loka</Text>
         </Pressable>
 
-        <View style={styles.body}>
-          <Animated.View
-            style={[styles.iconWrap, { transform: [{ scale: pulseAnim }] }]}
-          >
-            <Text style={styles.icon}>▬▬▬{"\n"}▬▬▬▬▬{"\n"}▬▬▬</Text>
-          </Animated.View>
+        {USE_ZEBRA ? (
+          /* ── Zebra hardware scanner UI ── */
+          <View style={styles.body}>
+            <Animated.View
+              style={[styles.iconWrap, { transform: [{ scale: pulseAnim }] }]}
+            >
+              <Text style={styles.icon}>▬▬▬{"\n"}▬▬▬▬▬{"\n"}▬▬▬</Text>
+            </Animated.View>
+            <Text style={styles.title}>
+              {ready ? "Skanni tilbúinn" : "Ræsi skanna…"}
+            </Text>
+            <Text style={styles.hint}>
+              {ready
+                ? "Ýttu á appelsínugula hnappinn til að skanna"
+                : "Stillir DataWedge…"}
+            </Text>
+          </View>
+        ) : !permission ? (
+          <View style={styles.body}>
+            <ActivityIndicator color="#fff" size="large" />
+          </View>
+        ) : !permission.granted ? (
+          <View style={styles.body}>
+            <Text style={styles.title}>Myndavél þarf aðgang</Text>
+            <Text style={styles.hint}>
+              Leyfðu aðgang að myndavél til að skanna strikamerki.
+            </Text>
+            <Pressable style={styles.permissionButton} onPress={requestPermission}>
+              <Text style={styles.permissionButtonText}>Leyfa myndavél</Text>
+            </Pressable>
+          </View>
+        ) : (
+          /* ── Camera scanner UI ── */
+          <>
+            <CameraView
+              style={StyleSheet.absoluteFill}
+              facing="back"
+              enableTorch={torchOn}
+              zoom={zoom}
+              onBarcodeScanned={handleBarcodeScanned}
+              barcodeScannerSettings={{
+                barcodeTypes: [
+                  "ean13",
+                  "ean8",
+                  "code128",
+                  "code39",
+                  "qr",
+                  "upc_a",
+                  "upc_e",
+                  "itf14",
+                ],
+              }}
+            />
 
-          <Text style={styles.title}>
-            {ready ? "Scanner ready" : "Starting scanner…"}
-          </Text>
-          <Text style={styles.hint}>
-            {ready
-              ? "Press the orange trigger button to scan"
-              : "Configuring DataWedge…"}
-          </Text>
-
-          {!!feedback && (
-            <View style={styles.feedbackBox}>
-              <Text style={styles.feedbackText}>{feedback}</Text>
+            {/* Viewfinder overlay */}
+            <View style={styles.viewfinderOverlay} pointerEvents="none">
+              <View style={styles.viewfinderFrame} />
+              <Text style={styles.viewfinderHint}>Punkaðu strikamerkið</Text>
             </View>
-          )}
-        </View>
+
+            {/* Camera controls */}
+            <View style={styles.cameraControls}>
+              {/* Flashlight toggle */}
+              <Pressable
+                style={[styles.controlBtn, torchOn && styles.controlBtnActive]}
+                onPress={() => setTorchOn((t) => !t)}
+              >
+                <Text style={styles.controlBtnIcon}>
+                  {torchOn ? "🔦" : "☽"}
+                </Text>
+                <Text style={styles.controlBtnLabel}>
+                  {torchOn ? "Slökkva" : "Ljós"}
+                </Text>
+              </Pressable>
+
+              {/* Zoom */}
+              <View style={styles.zoomRow}>
+                <Pressable
+                  style={[styles.zoomBtn, zoom <= 0 && styles.zoomBtnDisabled]}
+                  onPress={() => stepZoom(-0.1)}
+                  disabled={zoom <= 0}
+                >
+                  <Text style={styles.zoomBtnText}>−</Text>
+                </Pressable>
+                <Text style={styles.zoomLabel}>{zoomLabel}</Text>
+                <Pressable
+                  style={[styles.zoomBtn, zoom >= 0.8 && styles.zoomBtnDisabled]}
+                  onPress={() => stepZoom(0.1)}
+                  disabled={zoom >= 0.8}
+                >
+                  <Text style={styles.zoomBtnText}>+</Text>
+                </Pressable>
+              </View>
+            </View>
+          </>
+        )}
+
+        {!!feedback && (
+          <View style={styles.feedbackBox}>
+            <Text style={styles.feedbackText}>{feedback}</Text>
+          </View>
+        )}
       </View>
     </Modal>
   );
@@ -142,12 +246,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
+    zIndex: 10,
   },
   closeText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
   },
+
+  // Zebra UI
   body: {
     alignItems: "center",
     gap: 20,
@@ -180,8 +287,120 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 22,
   },
-  feedbackBox: {
+
+  // Camera viewfinder
+  viewfinderOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 20,
+  },
+  viewfinderFrame: {
+    width: 260,
+    height: 160,
+    borderWidth: 2,
+    borderColor: "#208AEF",
+    borderRadius: 12,
+    backgroundColor: "transparent",
+  },
+  viewfinderHint: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    overflow: "hidden",
+  },
+
+  // Camera controls bar
+  cameraControls: {
+    position: "absolute",
+    bottom: 60,
+    left: 20,
+    right: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+  },
+  controlBtn: {
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+    minWidth: 72,
+  },
+  controlBtnActive: {
+    borderColor: "#208AEF",
+    backgroundColor: "rgba(32,138,239,0.2)",
+  },
+  controlBtnIcon: {
+    fontSize: 22,
+  },
+  controlBtnLabel: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  zoomRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  zoomBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+  zoomBtnDisabled: {
+    opacity: 0.35,
+  },
+  zoomBtnText: {
+    color: "#fff",
+    fontSize: 22,
+    fontWeight: "600",
+    lineHeight: 26,
+  },
+  zoomLabel: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+    minWidth: 36,
+    textAlign: "center",
+  },
+
+  // Permission
+  permissionButton: {
+    backgroundColor: "#208AEF",
+    borderRadius: 10,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
     marginTop: 8,
+  },
+  permissionButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+
+  feedbackBox: {
+    position: "absolute",
+    bottom: 160,
+    left: 20,
+    right: 20,
     backgroundColor: "rgba(32,138,239,0.2)",
     borderRadius: 12,
     paddingHorizontal: 20,
