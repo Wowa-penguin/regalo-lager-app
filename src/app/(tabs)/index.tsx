@@ -34,8 +34,6 @@ export default function Index() {
   const [selectedStatus, setSelectedStatus] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
-  if (!user.username) return <Redirect href="/login" />;
-
   const loadOrders = async (silent = false) => {
     if (!silent) setLoading(true);
     setError("");
@@ -51,14 +49,13 @@ export default function Index() {
   };
 
   useEffect(() => {
-    loadOrders();
-  }, []);
+    if (user.username) loadOrders();
+  }, [user.username]);
 
   const handleLogout = async () => {
     setAuthToken(null);
     await clearSession();
     logout();
-    router.replace("/login");
   };
 
   const activeFilterCount = [
@@ -169,6 +166,8 @@ export default function Index() {
       </View>
     </Pressable>
   );
+
+  if (!user.username) return <Redirect href="/login" />;
 
   return (
     <SafeAreaView style={styles.container}>
