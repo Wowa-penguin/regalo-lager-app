@@ -428,16 +428,17 @@ export default function OrderDetail() {
         onClose={() => setManualEntryTarget(null)}
         onDone={(count) => {
           if (manualEntryTarget) {
-            setItemPicked(
-              invoiceNumber,
-              manualEntryTarget.line.item_code,
-              count,
-            );
-            if ((missingCounts[manualEntryTarget.line.item_code] ?? 0) > 0) {
+            const { line, initialCount } = manualEntryTarget;
+            const itemCode = line.item_code;
+            const currentAggregate = pickedCounts[itemCode] ?? 0;
+            const newAggregate = Math.max(0, currentAggregate - initialCount + count);
+            const total = itemTotals.get(itemCode) ?? line.quantity;
+            setItemPicked(invoiceNumber, itemCode, newAggregate);
+            if ((missingCounts[itemCode] ?? 0) > 0) {
               setItemMissing(
                 invoiceNumber,
-                manualEntryTarget.line.item_code,
-                Math.max(0, manualEntryTarget.line.quantity - count),
+                itemCode,
+                Math.max(0, total - newAggregate),
               );
             }
           }
@@ -445,15 +446,16 @@ export default function OrderDetail() {
         }}
         onMissing={(count) => {
           if (manualEntryTarget) {
-            const missing = manualEntryTarget.line.quantity - count;
-            setItemPicked(
-              invoiceNumber,
-              manualEntryTarget.line.item_code,
-              count,
-            );
+            const { line, initialCount } = manualEntryTarget;
+            const itemCode = line.item_code;
+            const currentAggregate = pickedCounts[itemCode] ?? 0;
+            const newAggregate = Math.max(0, currentAggregate - initialCount + count);
+            const total = itemTotals.get(itemCode) ?? line.quantity;
+            const missing = total - newAggregate;
+            setItemPicked(invoiceNumber, itemCode, newAggregate);
             setItemMissing(
               invoiceNumber,
-              manualEntryTarget.line.item_code,
+              itemCode,
               missing > 0 ? missing : 0,
             );
           }
