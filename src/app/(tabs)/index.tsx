@@ -1,5 +1,6 @@
 import { createInvoiceNotes } from "@/api/createInvoiceNotes";
 import { fetchInvoiceNotes } from "@/api/fetchInvoiceNotes";
+import { fetchLogout } from "@/api/fetchLogout";
 import { fetchOrders } from "@/api/fetchOrders";
 import useStore, { clearSession } from "@/store/useStore";
 import { Order } from "@/types/order";
@@ -53,6 +54,16 @@ export default function Index() {
   }, [user.username]);
 
   const handleLogout = async () => {
+    try {
+      const logoutRes = await fetchLogout();
+      if (logoutRes.status !== "success") {
+        Alert.alert("Error", logoutRes.detail ?? "Failed to log out");
+        return;
+      }
+    } catch (e: unknown) {
+      Alert.alert("Error", e instanceof Error ? e.message : "Failed to log out");
+      return;
+    }
     setAuthToken(null);
     await clearSession();
     logout();
@@ -89,7 +100,8 @@ export default function Index() {
         !String(o.invoice_number).includes(q)
       )
         return false;
-      if (zip && !(o.zip_code ?? "").toLowerCase().startsWith(zip)) return false;
+      if (zip && !(o.zip_code ?? "").toLowerCase().startsWith(zip))
+        return false;
       if (min !== null && !isNaN(min) && (o.total ?? 0) < min) return false;
       if (max !== null && !isNaN(max) && (o.total ?? 0) > max) return false;
       if (selectedStatus && o.hstatus !== selectedStatus) return false;
@@ -148,7 +160,9 @@ export default function Index() {
         </Text>
         <View style={styles.cardRight}>
           <Text style={styles.invoiceNumber}>#{item.invoice_number}</Text>
-          <Text style={styles.cardTotal}>{(item.total ?? 0).toFixed(0)} kr</Text>
+          <Text style={styles.cardTotal}>
+            {(item.total ?? 0).toFixed(0)} kr
+          </Text>
         </View>
       </View>
       <View style={styles.cardBottom}>
