@@ -13,6 +13,7 @@ import { useZebraScanner } from "@/hooks/useZebraScanner";
 import useBarcodeStore from "@/store/useBarcodeStore";
 import useStore from "@/store/useStore";
 import { Order, OrderLine } from "@/types/order";
+import { useAudioPlayer } from "expo-audio";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -29,6 +30,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 const EMPTY_COUNTS: Record<string, number> = {};
 const EMPTY_MISSING: Record<string, number> = {};
+const audioSource = require("@/assets/audio/error.mp3");
 
 export default function OrderDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -41,6 +43,7 @@ export default function OrderDetail() {
   const processingRef = useRef(false);
 
   const { products } = useProducts();
+  const player = useAudioPlayer(audioSource);
 
   // Toast
   const [toastMessage, setToastMessage] = useState("");
@@ -98,6 +101,12 @@ export default function OrderDetail() {
       if (toastTimer.current) clearTimeout(toastTimer.current);
     };
   }, [invoiceNumber]);
+
+  const playErrorSound = () => {
+    player.volume = 1.0;
+    player.seekTo(0);
+    player.play();
+  };
 
   const showToast = (message: string) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -201,6 +210,7 @@ export default function OrderDetail() {
     const current = pickedCounts[line.item_code] ?? 0;
     const total = itemTotals.get(line.item_code) ?? line.quantity;
     if (current >= total) {
+      playErrorSound();
       setOverpackWarning({
         name: line.description || line.item_code,
         itemCode: line.item_code,
@@ -234,6 +244,7 @@ export default function OrderDetail() {
     if (!line) {
       if (knownProductId !== null) {
         setWrongOrderProduct({ productId: knownProductId, barcode: data });
+        playErrorSound();
       } else {
         setPendingBarcode(data);
       }
@@ -431,7 +442,10 @@ export default function OrderDetail() {
             const { line, initialCount } = manualEntryTarget;
             const itemCode = line.item_code;
             const currentAggregate = pickedCounts[itemCode] ?? 0;
-            const newAggregate = Math.max(0, currentAggregate - initialCount + count);
+            const newAggregate = Math.max(
+              0,
+              currentAggregate - initialCount + count,
+            );
             const total = itemTotals.get(itemCode) ?? line.quantity;
             setItemPicked(invoiceNumber, itemCode, newAggregate);
             if ((missingCounts[itemCode] ?? 0) > 0) {
@@ -449,15 +463,14 @@ export default function OrderDetail() {
             const { line, initialCount } = manualEntryTarget;
             const itemCode = line.item_code;
             const currentAggregate = pickedCounts[itemCode] ?? 0;
-            const newAggregate = Math.max(0, currentAggregate - initialCount + count);
+            const newAggregate = Math.max(
+              0,
+              currentAggregate - initialCount + count,
+            );
             const total = itemTotals.get(itemCode) ?? line.quantity;
             const missing = total - newAggregate;
             setItemPicked(invoiceNumber, itemCode, newAggregate);
-            setItemMissing(
-              invoiceNumber,
-              itemCode,
-              missing > 0 ? missing : 0,
-            );
+            setItemMissing(invoiceNumber, itemCode, missing > 0 ? missing : 0);
           }
           setManualEntryTarget(null);
         }}

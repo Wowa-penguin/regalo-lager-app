@@ -61,7 +61,10 @@ export default function Index() {
         return;
       }
     } catch (e: unknown) {
-      Alert.alert("Error", e instanceof Error ? e.message : "Failed to log out");
+      Alert.alert(
+        "Error",
+        e instanceof Error ? e.message : "Failed to log out",
+      );
       return;
     }
     setAuthToken(null);

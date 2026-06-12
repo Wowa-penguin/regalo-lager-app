@@ -1,7 +1,7 @@
 import { fetchBarcodes } from "@/api/fetchBarcodes";
 import { fetchLogin } from "@/api/fetchLogin";
-import useStore, { clearSession, saveSession } from "@/store/useStore";
 import useBarcodeStore from "@/store/useBarcodeStore";
+import useStore, { saveSession } from "@/store/useStore";
 import { setAuthToken } from "@/utils/auth";
 import { Redirect, router } from "expo-router";
 import { useState } from "react";
@@ -41,7 +41,9 @@ export default function Login() {
       setUser(user);
       setAuthToken(res.token);
       await saveSession(user, res.token);
-      fetchBarcodes().then(setBarcodes).catch(() => {});
+      fetchBarcodes()
+        .then(setBarcodes)
+        .catch(() => {});
       router.replace("/");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
