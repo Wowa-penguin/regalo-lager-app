@@ -73,7 +73,7 @@ export default function Index() {
 
   const filteredOrders = useMemo(() => {
     const sorted = [...orders].sort((a, b) =>
-      a.customer_name.localeCompare(b.customer_name, undefined, {
+      (a.customer_name ?? "").localeCompare(b.customer_name ?? "", undefined, {
         sensitivity: "base",
       }),
     );
@@ -85,13 +85,13 @@ export default function Index() {
     return sorted.filter((o) => {
       if (
         q &&
-        !o.customer_name.toLowerCase().includes(q) &&
+        !(o.customer_name ?? "").toLowerCase().includes(q) &&
         !String(o.invoice_number).includes(q)
       )
         return false;
-      if (zip && !o.zip_code.toLowerCase().startsWith(zip)) return false;
-      if (min !== null && !isNaN(min) && o.total < min) return false;
-      if (max !== null && !isNaN(max) && o.total > max) return false;
+      if (zip && !(o.zip_code ?? "").toLowerCase().startsWith(zip)) return false;
+      if (min !== null && !isNaN(min) && (o.total ?? 0) < min) return false;
+      if (max !== null && !isNaN(max) && (o.total ?? 0) > max) return false;
       if (selectedStatus && o.hstatus !== selectedStatus) return false;
       return true;
     });
@@ -148,7 +148,7 @@ export default function Index() {
         </Text>
         <View style={styles.cardRight}>
           <Text style={styles.invoiceNumber}>#{item.invoice_number}</Text>
-          <Text style={styles.cardTotal}>{item.total.toFixed(0)} kr</Text>
+          <Text style={styles.cardTotal}>{(item.total ?? 0).toFixed(0)} kr</Text>
         </View>
       </View>
       <View style={styles.cardBottom}>

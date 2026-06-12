@@ -37,8 +37,6 @@ export default function ProductsTab() {
   const [saveError, setSaveError] = useState("");
   const processingRef = useRef(false);
 
-  if (!user.username) return <Redirect href="/login" />;
-
   const mappedIds = useMemo(
     () => new Set(barcodes.map((b) => b.product_id)),
     [barcodes],
@@ -83,6 +81,8 @@ export default function ProductsTab() {
   };
 
   useZebraScanner(!!scanningProduct, handleScanned);
+
+  if (!user.username) return <Redirect href="/login" />;
 
   const renderProduct = ({ item }: { item: Product }) => (
     <View style={tabStyles.card}>

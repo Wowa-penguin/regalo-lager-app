@@ -42,8 +42,6 @@ export default function ScannedTab() {
   const [saveError, setSaveError] = useState("");
   const processingRef = useRef(false);
 
-  if (!user.username) return <Redirect href="/login" />;
-
   const scannedItems = useMemo((): ScannedItem[] => {
     const q = query.trim().toLowerCase();
     return barcodes
@@ -89,6 +87,8 @@ export default function ScannedTab() {
   };
 
   useZebraScanner(!!editingItem, handleScanned);
+
+  if (!user.username) return <Redirect href="/login" />;
 
   const renderItem = ({ item }: { item: ScannedItem }) => (
     <View style={tabStyles.card}>
