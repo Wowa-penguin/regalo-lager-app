@@ -159,10 +159,30 @@ export default function OrderDetail() {
     return result;
   }, [order?.lines, pickedCounts]);
 
+  const attributedMissing = useMemo((): Map<OrderLine, number> => {
+    if (!order?.lines) return new Map();
+    const groups = new Map<string, OrderLine[]>();
+    for (const line of order.lines) {
+      if (!groups.has(line.item_code)) groups.set(line.item_code, []);
+      groups.get(line.item_code)!.push(line);
+    }
+    const result = new Map<OrderLine, number>();
+    for (const [itemCode, group] of groups) {
+      let remaining = missingCounts[itemCode] ?? 0;
+      for (const line of group) {
+        const capacity = Math.max(0, line.quantity - (attributedPicks.get(line) ?? 0));
+        const attributed = Math.min(remaining, capacity);
+        result.set(line, attributed);
+        remaining -= attributed;
+      }
+    }
+    return result;
+  }, [order?.lines, missingCounts, attributedPicks]);
+
   const lines = useMemo(() => {
     const priority = (line: OrderLine) => {
       const picked = attributedPicks.get(line) ?? 0;
-      const missing = missingCounts[line.item_code] ?? 0;
+      const missing = attributedMissing.get(line) ?? 0;
       if (picked >= line.quantity) return 1;
       if (missing > 0 && picked === 0) return 3;
       if (missing > 0 && picked > 0) return 2;
@@ -184,7 +204,7 @@ export default function OrderDetail() {
       const nameB = pB?.name || b.description || b.item_code;
       return nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
     });
-  }, [order?.lines, productMap, attributedPicks, missingCounts]);
+  }, [order?.lines, productMap, attributedPicks, attributedMissing]);
 
   const mappedProductIds = useMemo(
     () => new Set(barcodes.map((b) => b.product_id)),
@@ -390,7 +410,7 @@ export default function OrderDetail() {
               <OrderLineCard
                 line={item}
                 picked={attributedPicks.get(item) ?? 0}
-                missing={missingCounts[item.item_code] ?? 0}
+                missing={attributedMissing.get(item) ?? 0}
                 isBarcodeMapped={mappedProductIds.has(item.item_code)}
                 product={productMap.get(item.item_code)}
                 onPressStatus={() =>
