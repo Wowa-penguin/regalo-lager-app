@@ -12,6 +12,8 @@ import { useProducts } from "@/hooks/useProducts";
 import { useZebraScanner } from "@/hooks/useZebraScanner";
 import useBarcodeStore from "@/store/useBarcodeStore";
 import useStore from "@/store/useStore";
+import useCustomSortStore from "@/store/useCustomSortStore";
+import { CATEGORY_ORDER } from "@/constants/const";
 import { Order, OrderLine } from "@/types/order";
 import { useAudioPlayer } from "expo-audio";
 import { router, useLocalSearchParams } from "expo-router";
@@ -81,6 +83,8 @@ export default function OrderDetail() {
   );
   const setItemPicked = useStore((s) => s.setItemPicked);
   const setItemMissing = useStore((s) => s.setItemMissing);
+
+  const categoryOrder = useCustomSortStore((s) => s.categoryOrder);
 
   const findProductId = useBarcodeStore((s) => s.findProductId);
   const addBarcode = useBarcodeStore((s) => s.addBarcode);
@@ -192,19 +196,36 @@ export default function OrderDetail() {
       const pa = priority(a);
       const pb = priority(b);
       if (pa !== pb) return pa - pb;
+
       const pA = productMap.get(a.item_code);
       const pB = productMap.get(b.item_code);
-      const byCategory = (pA?.category ?? "").localeCompare(
-        pB?.category ?? "",
-        undefined,
-        { sensitivity: "base" },
-      );
+      const catA = pA?.category ?? "";
+      const catB = pB?.category ?? "";
+
+      // Category order from CATEGORY_ORDER constant
+      const catIdxA = CATEGORY_ORDER.indexOf(catA);
+      const catIdxB = CATEGORY_ORDER.indexOf(catB);
+      const catPosA = catIdxA === -1 ? Infinity : catIdxA;
+      const catPosB = catIdxB === -1 ? Infinity : catIdxB;
+      if (catPosA !== catPosB) return catPosA - catPosB;
+
+      // Within same category: custom scan order takes precedence
+      const customA = categoryOrder[catA];
+      const customB = categoryOrder[catB];
+      const posA = customA ? customA.indexOf(a.item_code) : -1;
+      const posB = customB ? customB.indexOf(b.item_code) : -1;
+      if (posA !== -1 && posB !== -1) return posA - posB;
+      if (posA !== -1) return -1;
+      if (posB !== -1) return 1;
+
+      // Fallback: category name then product name alphabetically
+      const byCategory = catA.localeCompare(catB, undefined, { sensitivity: "base" });
       if (byCategory !== 0) return byCategory;
       const nameA = pA?.name || a.description || a.item_code;
       const nameB = pB?.name || b.description || b.item_code;
       return nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
     });
-  }, [order?.lines, productMap, attributedPicks, attributedMissing]);
+  }, [order?.lines, productMap, attributedPicks, attributedMissing, categoryOrder]);
 
   const mappedProductIds = useMemo(
     () => new Set(barcodes.map((b) => b.product_id)),

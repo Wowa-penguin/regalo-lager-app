@@ -36,6 +36,10 @@ export default function TabsLayout() {
         name="scanned"
         options={{ title: "Breyta", tabBarIcon: () => null }}
       />
+      <Tabs.Screen
+        name="sort"
+        options={{ title: "Röðun", tabBarIcon: () => null }}
+      />
     </Tabs>
   );
 }
