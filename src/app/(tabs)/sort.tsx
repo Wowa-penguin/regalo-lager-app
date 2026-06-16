@@ -1,4 +1,5 @@
 import { createBarcode } from "@/api/createBarcode";
+import { saveSortConfig } from "@/api/saveSortConfig";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import { useProducts } from "@/hooks/useProducts";
 import { useZebraScanner } from "@/hooks/useZebraScanner";
@@ -47,6 +48,8 @@ export default function SortTab() {
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState("");
   const [iosScanOpen, setIosScanOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const processingRef = useRef(false);
 
   // Toast
@@ -189,10 +192,20 @@ export default function SortTab() {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!selectedCategory) return;
-    setCategoryOrder(selectedCategory, items.map((i) => i.key));
-    setSelectedCategory(null);
+    setSaving(true);
+    setSaveError("");
+    const itemCodes = items.map((i) => i.key);
+    setCategoryOrder(selectedCategory, itemCodes);
+    try {
+      await saveSortConfig({ ...categoryOrder, [selectedCategory]: itemCodes });
+      setSelectedCategory(null);
+    } catch (e: unknown) {
+      setSaveError(e instanceof Error ? e.message : "Villa við vistun á netþjón");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleClear = () => {
@@ -262,8 +275,16 @@ export default function SortTab() {
           <Text style={styles.headerTitle} numberOfLines={1}>
             {selectedCategory}
           </Text>
-          <Pressable style={styles.saveButton} onPress={handleSave}>
-            <Text style={styles.saveButtonText}>Vista</Text>
+          <Pressable
+            style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+            onPress={handleSave}
+            disabled={saving}
+          >
+            {saving ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.saveButtonText}>Vista</Text>
+            )}
           </Pressable>
         </View>
 
@@ -294,11 +315,16 @@ export default function SortTab() {
         )}
 
         {/* Footer actions */}
-        {items.length > 0 && (
+        {(items.length > 0 || !!saveError) && (
           <View style={styles.footer}>
-            <Pressable style={styles.clearButton} onPress={handleClear}>
-              <Text style={styles.clearButtonText}>Hreinsa allt</Text>
-            </Pressable>
+            {!!saveError && (
+              <Text style={styles.saveError}>{saveError}</Text>
+            )}
+            {items.length > 0 && (
+              <Pressable style={styles.clearButton} onPress={handleClear}>
+                <Text style={styles.clearButtonText}>Hreinsa allt</Text>
+              </Pressable>
+            )}
           </View>
         )}
 
@@ -495,6 +521,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 9,
     borderRadius: 8,
+    minWidth: 64,
+    alignItems: "center",
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
   },
   saveButtonText: {
     color: "#fff",
@@ -599,6 +630,12 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#E2DAD3",
     backgroundColor: "#fff",
+  },
+  saveError: {
+    color: "#C0392B",
+    fontSize: 13,
+    textAlign: "center",
+    marginBottom: 10,
   },
   clearButton: {
     alignItems: "center",

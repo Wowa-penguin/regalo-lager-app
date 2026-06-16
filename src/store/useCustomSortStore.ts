@@ -9,6 +9,7 @@ interface CustomSortState {
   categoryOrder: CategoryOrder;
   setCategoryOrder: (category: string, itemCodes: string[]) => void;
   clearCategoryOrder: (category: string) => void;
+  setAllCategoryOrder: (order: CategoryOrder) => void;
   loadPersistedSort: () => Promise<void>;
 }
 
@@ -26,6 +27,11 @@ const useCustomSortStore = create<CustomSortState>((set, get) => ({
     delete next[category];
     set({ categoryOrder: next });
     SecureStore.setItemAsync(SORT_CONFIG_KEY, JSON.stringify(next)).catch(() => {});
+  },
+
+  setAllCategoryOrder: (order) => {
+    set({ categoryOrder: order });
+    SecureStore.setItemAsync(SORT_CONFIG_KEY, JSON.stringify(order)).catch(() => {});
   },
 
   loadPersistedSort: async () => {

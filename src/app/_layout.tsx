@@ -1,4 +1,5 @@
 import { fetchBarcodes } from "@/api/fetchBarcodes";
+import { fetchSortConfig } from "@/api/fetchSortConfig";
 import useStore, { loadSession } from "@/store/useStore";
 import useBarcodeStore from "@/store/useBarcodeStore";
 import useCustomSortStore from "@/store/useCustomSortStore";
@@ -12,6 +13,7 @@ export default function RootLayout() {
   const setUser = useStore((s) => s.setUser);
   const setBarcodes = useBarcodeStore((s) => s.setBarcodes);
   const loadPersistedSort = useCustomSortStore((s) => s.loadPersistedSort);
+  const setAllCategoryOrder = useCustomSortStore((s) => s.setAllCategoryOrder);
 
   useEffect(() => {
     loadPersistedSort().catch(() => {});
@@ -20,6 +22,7 @@ export default function RootLayout() {
         setUser(session.user);
         setAuthToken(session.token);
         fetchBarcodes().then(setBarcodes).catch(() => {});
+        fetchSortConfig().then(setAllCategoryOrder).catch(() => {});
       }
       setReady(true);
     });
