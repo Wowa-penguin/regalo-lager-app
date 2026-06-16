@@ -1,13 +1,13 @@
 import { createBarcode } from "@/api/createBarcode";
 import { saveSortConfig } from "@/api/saveSortConfig";
 import BarcodeScanner from "@/components/BarcodeScanner";
+import { CATEGORY_ORDER } from "@/constants/const";
 import { useProducts } from "@/hooks/useProducts";
 import { useZebraScanner } from "@/hooks/useZebraScanner";
 import useBarcodeStore from "@/store/useBarcodeStore";
 import useCustomSortStore from "@/store/useCustomSortStore";
 import useStore from "@/store/useStore";
 import { Product } from "@/types/product";
-import { CATEGORY_ORDER } from "@/constants/const";
 import { Redirect } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -22,10 +22,6 @@ import {
   Text,
   View,
 } from "react-native";
-import DraggableFlatList, {
-  RenderItemParams,
-  ScaleDecorator,
-} from "react-native-draggable-flatlist";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type SortItem = {
@@ -82,13 +78,17 @@ export default function SortTab() {
     return products
       .filter((p) => p.category === selectedCategory)
       .sort((a, b) =>
-        (a.name || a.product_id).localeCompare(b.name || b.product_id, undefined, {
-          sensitivity: "base",
-        }),
+        (a.name || a.product_id).localeCompare(
+          b.name || b.product_id,
+          undefined,
+          {
+            sensitivity: "base",
+          },
+        ),
       );
   }, [products, selectedCategory]);
 
-  // Load existing sort items when entering a category editor
+  // Load only saved/scanned items when entering a category editor
   useEffect(() => {
     if (selectedCategory === null) {
       setItems([]);
@@ -100,9 +100,7 @@ export default function SortTab() {
       codes
         .map((code): SortItem | null => {
           const p = productMap.get(code);
-          return p
-            ? { key: code, name: p.name || code, category: p.category }
-            : null;
+          return p ? { key: code, name: p.name || code, category: p.category } : null;
         })
         .filter((i): i is SortItem => i !== null),
     );
@@ -137,25 +135,37 @@ export default function SortTab() {
       const product = productMap.get(productId);
       if (!product) {
         showToast("Vara ekki þekkt");
-        setTimeout(() => { processingRef.current = false; }, 300);
+        setTimeout(() => {
+          processingRef.current = false;
+        }, 300);
         return;
       }
       if (product.category !== selectedCategory) {
         showToast(`Vara er í flokki: ${product.category}`);
-        setTimeout(() => { processingRef.current = false; }, 300);
+        setTimeout(() => {
+          processingRef.current = false;
+        }, 300);
         return;
       }
       if (items.some((i) => i.key === productId)) {
         showToast("Þegar í röðun");
-        setTimeout(() => { processingRef.current = false; }, 300);
+        setTimeout(() => {
+          processingRef.current = false;
+        }, 300);
         return;
       }
       setItems((prev) => [
         ...prev,
-        { key: productId, name: product.name || productId, category: product.category },
+        {
+          key: productId,
+          name: product.name || productId,
+          category: product.category,
+        },
       ]);
       showToast(`+ ${product.name || productId}`);
-      setTimeout(() => { processingRef.current = false; }, 300);
+      setTimeout(() => {
+        processingRef.current = false;
+      }, 300);
     } else {
       setPendingBarcode(barcode);
       // processingRef stays true until modal closes
@@ -202,24 +212,30 @@ export default function SortTab() {
       await saveSortConfig({ ...categoryOrder, [selectedCategory]: itemCodes });
       setSelectedCategory(null);
     } catch (e: unknown) {
-      setSaveError(e instanceof Error ? e.message : "Villa við vistun á netþjón");
+      setSaveError(
+        e instanceof Error ? e.message : "Villa við vistun á netþjón",
+      );
     } finally {
       setSaving(false);
     }
   };
 
   const handleClear = () => {
-    Alert.alert("Hreinsa röðun", `Hreinsa alla sérsniðna röðun fyrir „${selectedCategory}"?`, [
-      { text: "Hætta", style: "cancel" },
-      {
-        text: "Hreinsa",
-        style: "destructive",
-        onPress: () => {
-          setItems([]);
-          clearCategoryOrder(selectedCategory!);
+    Alert.alert(
+      "Hreinsa röðun",
+      `Hreinsa alla sérsniðna röðun fyrir „${selectedCategory}"?`,
+      [
+        { text: "Hætta", style: "cancel" },
+        {
+          text: "Hreinsa",
+          style: "destructive",
+          onPress: () => {
+            setItems([]);
+            clearCategoryOrder(selectedCategory!);
+          },
         },
-      },
-    ]);
+      ],
+    );
   };
 
   const handleDelete = (key: string) => {
@@ -232,34 +248,48 @@ export default function SortTab() {
     processingRef.current = false;
   };
 
-  const renderSortItem = ({ item, drag, isActive, getIndex }: RenderItemParams<SortItem>) => {
-    const index = getIndex() ?? 0;
-    return (
-      <ScaleDecorator>
-        <View
-          style={[styles.sortRow, isActive && styles.sortRowActive]}
-        >
-          <Text style={styles.sortIndex}>{index + 1}</Text>
-          <View style={styles.sortInfo}>
-            <Text style={styles.sortName} numberOfLines={1}>
-              {item.name}
-            </Text>
-            <Text style={styles.sortCode}>{item.key}</Text>
-          </View>
-          <Pressable
-            onPress={() => handleDelete(item.key)}
-            hitSlop={8}
-            style={styles.deleteBtn}
-          >
-            <Text style={styles.deleteBtnText}>✕</Text>
-          </Pressable>
-          <Pressable onPressIn={drag} hitSlop={8} style={styles.dragHandle}>
-            <Text style={styles.dragHandleText}>☰</Text>
-          </Pressable>
-        </View>
-      </ScaleDecorator>
-    );
+  const moveItem = (key: string, direction: -1 | 1) => {
+    setItems((prev) => {
+      const idx = prev.findIndex((i) => i.key === key);
+      if (idx === -1) return prev;
+      const next = idx + direction;
+      if (next < 0 || next >= prev.length) return prev;
+      const arr = [...prev];
+      [arr[idx], arr[next]] = [arr[next], arr[idx]];
+      return arr;
+    });
   };
+
+  const renderSortItem = ({ item, index }: { item: SortItem; index: number }) => (
+    <View style={styles.sortRow}>
+      <Text style={styles.sortIndex}>{index + 1}</Text>
+      <View style={styles.sortInfo}>
+        <Text style={styles.sortName} numberOfLines={1}>{item.name}</Text>
+        <Text style={styles.sortCode}>{item.key}</Text>
+      </View>
+      <View style={styles.rowActions}>
+        <Pressable
+          onPress={() => moveItem(item.key, -1)}
+          disabled={index === 0}
+          style={[styles.moveBtn, index === 0 && styles.moveBtnDisabled]}
+          hitSlop={6}
+        >
+          <Text style={styles.moveBtnText}>↑</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => moveItem(item.key, 1)}
+          disabled={index === items.length - 1}
+          style={[styles.moveBtn, index === items.length - 1 && styles.moveBtnDisabled]}
+          hitSlop={6}
+        >
+          <Text style={styles.moveBtnText}>↓</Text>
+        </Pressable>
+        <Pressable onPress={() => handleDelete(item.key)} hitSlop={8} style={styles.deleteBtn}>
+          <Text style={styles.deleteBtnText}>✕</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
 
   if (!user.username) return <Redirect href="/login" />;
 
@@ -291,35 +321,37 @@ export default function SortTab() {
         {/* Scanner status badge (Android) */}
         {Platform.OS === "android" && (
           <View style={styles.scanBadgeRow}>
-            <Text style={styles.scanBadge}>⊙ Skanni virkur — skanna til að bæta við</Text>
+            <Text style={styles.scanBadge}>
+              ⊙ Skanni virkur — hald og drag ☰ til að raða
+            </Text>
           </View>
         )}
 
-        {/* List */}
-        {items.length === 0 ? (
-          <View style={styles.centered}>
-            <Text style={styles.emptyIcon}>☰</Text>
-            <Text style={styles.emptyTitle}>Engin röðun stillt</Text>
-            <Text style={styles.emptyHint}>
-              Skanaðu vörur í þeirri röð sem þú vilt tína þær
-            </Text>
-          </View>
-        ) : (
-          <DraggableFlatList
-            data={items}
-            keyExtractor={(item) => item.key}
-            onDragEnd={({ data }) => setItems(data)}
-            renderItem={renderSortItem}
-            contentContainerStyle={styles.sortList}
-          />
-        )}
+        {/* List — flex: 1 so footer stays pinned above tab bar */}
+        <View style={styles.listContainer}>
+          {items.length === 0 ? (
+            <View style={styles.centered}>
+              <Text style={styles.emptyIcon}>⊙</Text>
+              <Text style={styles.emptyTitle}>Engin röðun stillt</Text>
+              <Text style={styles.emptyHint}>
+                Skanaðu vörur í þeirri röð sem þú vilt tína þær
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={items}
+              keyExtractor={(item) => item.key}
+              renderItem={({ item, index }) => renderSortItem({ item, index })}
+              contentContainerStyle={styles.sortList}
+              style={styles.draggableList}
+            />
+          )}
+        </View>
 
         {/* Footer actions */}
         {(items.length > 0 || !!saveError) && (
           <View style={styles.footer}>
-            {!!saveError && (
-              <Text style={styles.saveError}>{saveError}</Text>
-            )}
+            {!!saveError && <Text style={styles.saveError}>{saveError}</Text>}
             {items.length > 0 && (
               <Pressable style={styles.clearButton} onPress={handleClear}>
                 <Text style={styles.clearButtonText}>Hreinsa allt</Text>
@@ -390,9 +422,13 @@ export default function SortTab() {
                         styles.assignCardDisabled,
                     ]}
                     onPress={() => handleAssign(p)}
-                    disabled={assigning || items.some((i) => i.key === p.product_id)}
+                    disabled={
+                      assigning || items.some((i) => i.key === p.product_id)
+                    }
                   >
-                    <Text style={styles.assignName}>{p.name || p.product_id}</Text>
+                    <Text style={styles.assignName}>
+                      {p.name || p.product_id}
+                    </Text>
                     <Text style={styles.assignCode}>
                       {p.product_id}
                       {items.some((i) => i.key === p.product_id)
@@ -567,6 +603,12 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 20,
   },
+  listContainer: {
+    flex: 1,
+  },
+  draggableList: {
+    flex: 1,
+  },
   // Sort list
   sortList: {
     padding: 14,
@@ -583,11 +625,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     elevation: 1,
-  },
-  sortRowActive: {
-    backgroundColor: "#EBF5FF",
-    borderColor: "#208AEF",
-    elevation: 6,
   },
   sortIndex: {
     width: 28,
@@ -609,16 +646,41 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#aaa",
   },
+  rowActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  moveBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: "#F0F4FF",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#D0E0FF",
+  },
+  moveBtnDisabled: {
+    opacity: 0.25,
+  },
+  moveBtnText: {
+    fontSize: 16,
+    color: "#208AEF",
+    fontWeight: "700",
+    lineHeight: 20,
+  },
   deleteBtn: {
-    padding: 6,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
   },
   deleteBtnText: {
     fontSize: 14,
     color: "#C0392B",
     fontWeight: "700",
-  },
-  dragHandle: {
-    padding: 6,
   },
   dragHandleText: {
     fontSize: 18,
