@@ -1,8 +1,10 @@
 import { createInvoiceNotes } from "@/api/createInvoiceNotes";
 import { fetchInvoiceNotes } from "@/api/fetchInvoiceNotes";
 import { fetchLogout } from "@/api/fetchLogout";
+import { fetchMessage } from "@/api/fetchMessage";
 import { fetchOrders } from "@/api/fetchOrders";
 import useStore, { clearSession } from "@/store/useStore";
+import { Message } from "@/types/message";
 import { Order } from "@/types/order";
 import { setAuthToken } from "@/utils/auth";
 import { Redirect, router } from "expo-router";
@@ -25,6 +27,7 @@ export default function Index() {
   const logout = useStore((s) => s.logout);
 
   const [orders, setOrders] = useState<Order[]>([]);
+  const [message, setMessage] = useState<Message>();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -34,13 +37,23 @@ export default function Index() {
   const [maxPrice, setMaxPrice] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [messageExpanded, setMessageExpanded] = useState(false);
+
+  const MESSAGE_TRUNCATE_LENGTH = 75;
+  const isMessageLong = (message?.body.length ?? 0) > MESSAGE_TRUNCATE_LENGTH;
+  const displayedMessage =
+    isMessageLong && !messageExpanded
+      ? `${message!.body.slice(0, MESSAGE_TRUNCATE_LENGTH)}…`
+      : message?.body;
 
   const loadOrders = async (silent = false) => {
     if (!silent) setLoading(true);
     setError("");
     try {
       const data = await fetchOrders();
+      const message = await fetchMessage();
       setOrders(data);
+      setMessage(message);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load orders");
     } finally {
@@ -306,6 +319,20 @@ export default function Index() {
               }}
             >
               <Text style={styles.clearFiltersText}>Clear filters</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
+
+      {message && (
+        <View style={styles.noteBanner}>
+          <Text style={styles.noteText}>Skilaboð frá Berglindi:</Text>
+          <Text style={styles.noteText}>{displayedMessage}</Text>
+          {isMessageLong && (
+            <Pressable onPress={() => setMessageExpanded((v) => !v)}>
+              <Text style={styles.noteExpandText}>
+                {messageExpanded ? "Minna" : "Meira"}
+              </Text>
             </Pressable>
           )}
         </View>
@@ -615,5 +642,23 @@ const styles = StyleSheet.create({
   },
   statusChipTextActive: {
     color: "#208AEF",
+  },
+  noteBanner: {
+    backgroundColor: "#FFFBE6",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#FFE58F",
+  },
+  noteText: {
+    fontSize: 14,
+    color: "#7C5800",
+    fontWeight: "500",
+  },
+  noteExpandText: {
+    fontSize: 13,
+    color: "#208AEF",
+    fontWeight: "700",
+    marginTop: 4,
   },
 });
