@@ -2,18 +2,19 @@ import { createBarcode } from "@/api/createBarcode";
 import { deleteInvoiceNotes } from "@/api/fetchInvoiceNotes";
 import { fetchOrder } from "@/api/fetchOrder";
 import { finishOrder } from "@/api/finishOrder";
+import { unfinishOrder } from "@/api/unfinishOrder";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import AssignBarcodeModal from "@/components/order/AssignBarcodeModal";
 import ManualEntryModal from "@/components/order/ManualEntryModal";
 import OrderLineCard from "@/components/order/OrderLineCard";
 import OverpackWarningModal from "@/components/order/OverpackWarningModal";
 import WrongOrderModal from "@/components/order/WrongOrderModal";
+import { CATEGORY_ORDER } from "@/constants/const";
 import { useProducts } from "@/hooks/useProducts";
 import { useZebraScanner } from "@/hooks/useZebraScanner";
 import useBarcodeStore from "@/store/useBarcodeStore";
-import useStore from "@/store/useStore";
 import useCustomSortStore from "@/store/useCustomSortStore";
-import { CATEGORY_ORDER } from "@/constants/const";
+import useStore from "@/store/useStore";
 import { Order, OrderLine } from "@/types/order";
 import { useAudioPlayer } from "expo-audio";
 import { router, useLocalSearchParams } from "expo-router";
@@ -174,7 +175,10 @@ export default function OrderDetail() {
     for (const [itemCode, group] of groups) {
       let remaining = missingCounts[itemCode] ?? 0;
       for (const line of group) {
-        const capacity = Math.max(0, line.quantity - (attributedPicks.get(line) ?? 0));
+        const capacity = Math.max(
+          0,
+          line.quantity - (attributedPicks.get(line) ?? 0),
+        );
         const attributed = Math.min(remaining, capacity);
         result.set(line, attributed);
         remaining -= attributed;
@@ -219,13 +223,21 @@ export default function OrderDetail() {
       if (posB !== -1) return 1;
 
       // Fallback: category name then product name alphabetically
-      const byCategory = catA.localeCompare(catB, undefined, { sensitivity: "base" });
+      const byCategory = catA.localeCompare(catB, undefined, {
+        sensitivity: "base",
+      });
       if (byCategory !== 0) return byCategory;
       const nameA = pA?.name || a.description || a.item_code;
       const nameB = pB?.name || b.description || b.item_code;
       return nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
     });
-  }, [order?.lines, productMap, attributedPicks, attributedMissing, categoryOrder]);
+  }, [
+    order?.lines,
+    productMap,
+    attributedPicks,
+    attributedMissing,
+    categoryOrder,
+  ]);
 
   const mappedProductIds = useMemo(
     () => new Set(barcodes.map((b) => b.product_id)),
@@ -321,6 +333,13 @@ export default function OrderDetail() {
 
   const handleFinish = async () => {
     if (!order) return;
+
+    if (order?.finished) {
+      await unfinishOrder(order.invoice_number);
+      setOrder((o) => (o ? { ...o, finished: false } : o));
+      return;
+    }
+
     setFinishing(true);
     setFinishError("");
     try {
@@ -376,13 +395,12 @@ export default function OrderDetail() {
             finishing && styles.finishButtonDisabled,
           ]}
           onPress={handleFinish}
-          disabled={finishing || order?.finished}
         >
           {finishing ? (
             <ActivityIndicator color="#fff" size="small" />
           ) : (
             <Text style={styles.finishButtonText}>
-              {order?.finished ? "Lokið" : "Klára"}
+              {order?.finished ? "Áfram" : "Klára"}
             </Text>
           )}
         </Pressable>
