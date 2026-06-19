@@ -1,7 +1,7 @@
 import { createBarcode } from "@/api/createBarcode";
 import { saveSortConfig } from "@/api/saveSortConfig";
 import BarcodeScanner from "@/components/BarcodeScanner";
-import { CATEGORY_ORDER } from "@/constants/const";
+import { CATEGORY_ORDER, getCategoryName } from "@/constants/const";
 import { useProducts } from "@/hooks/useProducts";
 import { useZebraScanner } from "@/hooks/useZebraScanner";
 import useBarcodeStore from "@/store/useBarcodeStore";
@@ -20,6 +20,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -46,6 +47,8 @@ export default function SortTab() {
   const [iosScanOpen, setIosScanOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [positionTarget, setPositionTarget] = useState<SortItem | null>(null);
+  const [positionInput, setPositionInput] = useState("");
   const processingRef = useRef(false);
 
   // Toast
@@ -141,7 +144,7 @@ export default function SortTab() {
         return;
       }
       if (product.category !== selectedCategory) {
-        showToast(`Vara er í flokki: ${product.category}`);
+        showToast(`Vara er í flokki: ${getCategoryName(product.category)}`);
         setTimeout(() => {
           processingRef.current = false;
         }, 300);
@@ -223,7 +226,7 @@ export default function SortTab() {
   const handleClear = () => {
     Alert.alert(
       "Hreinsa röðun",
-      `Hreinsa alla sérsniðna röðun fyrir „${selectedCategory}"?`,
+      `Hreinsa alla sérsniðna röðun fyrir „${getCategoryName(selectedCategory!)}"?`,
       [
         { text: "Hætta", style: "cancel" },
         {
@@ -260,9 +263,41 @@ export default function SortTab() {
     });
   };
 
+  const openPositionPicker = (item: SortItem, currentIndex: number) => {
+    setPositionTarget(item);
+    setPositionInput(String(currentIndex + 1));
+  };
+
+  const closePositionPicker = () => {
+    setPositionTarget(null);
+    setPositionInput("");
+  };
+
+  const confirmPosition = () => {
+    if (!positionTarget) return;
+    const requested = parseInt(positionInput, 10);
+    if (!Number.isFinite(requested)) {
+      closePositionPicker();
+      return;
+    }
+    setItems((prev) => {
+      const idx = prev.findIndex((i) => i.key === positionTarget.key);
+      if (idx === -1) return prev;
+      const clamped = Math.min(Math.max(requested - 1, 0), prev.length - 1);
+      if (clamped === idx) return prev;
+      const arr = [...prev];
+      const [moved] = arr.splice(idx, 1);
+      arr.splice(clamped, 0, moved);
+      return arr;
+    });
+    closePositionPicker();
+  };
+
   const renderSortItem = ({ item, index }: { item: SortItem; index: number }) => (
     <View style={styles.sortRow}>
-      <Text style={styles.sortIndex}>{index + 1}</Text>
+      <Pressable onPress={() => openPositionPicker(item, index)} style={styles.sortIndexBtn} hitSlop={6}>
+        <Text style={styles.sortIndex}>{index + 1}</Text>
+      </Pressable>
       <View style={styles.sortInfo}>
         <Text style={styles.sortName} numberOfLines={1}>{item.name}</Text>
         <Text style={styles.sortCode}>{item.key}</Text>
@@ -303,7 +338,7 @@ export default function SortTab() {
             <Text style={styles.backText}>← Til baka</Text>
           </Pressable>
           <Text style={styles.headerTitle} numberOfLines={1}>
-            {selectedCategory}
+            {getCategoryName(selectedCategory)}
           </Text>
           <Pressable
             style={[styles.saveButton, saving && styles.saveButtonDisabled]}
@@ -458,6 +493,45 @@ export default function SortTab() {
             </SafeAreaView>
           </View>
         </Modal>
+
+        {/* Set position modal */}
+        <Modal
+          visible={positionTarget !== null}
+          animationType="fade"
+          transparent
+          onRequestClose={closePositionPicker}
+        >
+          <View style={styles.positionOverlay}>
+            <View style={styles.positionCard}>
+              <Text style={styles.positionTitle}>Setja staðsetningu</Text>
+              {positionTarget && (
+                <Text style={styles.positionProduct} numberOfLines={1}>
+                  {positionTarget.name}
+                </Text>
+              )}
+              <Text style={styles.positionHint}>
+                Sæti (1–{items.length})
+              </Text>
+              <TextInput
+                style={styles.positionInput}
+                value={positionInput}
+                onChangeText={(t) => setPositionInput(t.replace(/[^0-9]/g, ""))}
+                keyboardType="number-pad"
+                autoFocus
+                selectTextOnFocus
+                onSubmitEditing={confirmPosition}
+              />
+              <View style={styles.positionButtons}>
+                <Pressable style={styles.positionCancelBtn} onPress={closePositionPicker}>
+                  <Text style={styles.positionCancelText}>Hætta</Text>
+                </Pressable>
+                <Pressable style={styles.positionConfirmBtn} onPress={confirmPosition}>
+                  <Text style={styles.positionConfirmText}>Staðfesta</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     );
   }
@@ -487,7 +561,7 @@ export default function SortTab() {
                 onPress={() => setSelectedCategory(cat)}
               >
                 <View style={styles.catInfo}>
-                  <Text style={styles.catName}>{cat}</Text>
+                  <Text style={styles.catName}>{getCategoryName(cat)}</Text>
                   {count > 0 ? (
                     <Text style={styles.catCount}>{count} vörur í röðun</Text>
                   ) : (
@@ -625,6 +699,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     elevation: 1,
+  },
+  sortIndexBtn: {
+    minWidth: 32,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: "#EBF4FF",
   },
   sortIndex: {
     width: 28,
@@ -893,5 +973,76 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#888",
     fontWeight: "600",
+  },
+  // Position picker modal
+  positionOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+  },
+  positionCard: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 24,
+    gap: 10,
+  },
+  positionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1a1a1a",
+    textAlign: "center",
+  },
+  positionProduct: {
+    fontSize: 14,
+    color: "#888",
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  positionHint: {
+    fontSize: 13,
+    color: "#aaa",
+    textAlign: "center",
+  },
+  positionInput: {
+    borderWidth: 1.5,
+    borderColor: "#208AEF",
+    borderRadius: 10,
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#1a1a1a",
+    textAlign: "center",
+    paddingVertical: 10,
+    marginVertical: 4,
+  },
+  positionButtons: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 8,
+  },
+  positionCancelBtn: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 13,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E2DAD3",
+  },
+  positionCancelText: {
+    fontSize: 15,
+    color: "#888",
+    fontWeight: "600",
+  },
+  positionConfirmBtn: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 13,
+    borderRadius: 10,
+    backgroundColor: "#208AEF",
+  },
+  positionConfirmText: {
+    fontSize: 15,
+    color: "#fff",
+    fontWeight: "700",
   },
 });

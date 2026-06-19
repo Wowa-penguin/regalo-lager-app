@@ -28,6 +28,36 @@ export const CATEGORY_ORDER: string[] = [
   "20",
 ];
 
+// Human-readable names for category codes — edit this whenever you want a
+// category to display as something other than its raw code.
+export const CATEGORY_NAMES: Record<string, string> = {
+  // "32": "Þurrmat",
+  "32": "Matrix Litir",
+  "43": "RK litir",
+  "42": "Rk",
+  "44": "Mor Litir",
+  "57": "Waterclouds",
+  "11": "Tigi litir",
+  "24": "Mor",
+  "35": "Ker",
+  "08": "Tigi",
+  "28": "Maria Nila",
+  "58": "HC",
+  "05": "Mor Body",
+  "33": "Loréal",
+  "34": "Majirel",
+  "55": "Dr.J",
+  "07": "Trontveit",
+  "31": "Matrix",
+  "36": "Joico",
+  "37": "Joico litir",
+  "56": "UK lass",
+  "20": "Lycon",
+};
+
+export const getCategoryName = (code: string): string =>
+  CATEGORY_NAMES[code] ?? code;
+
 const constants = {
   appName: "Regalo Lager",
   smallTextSize: 12,

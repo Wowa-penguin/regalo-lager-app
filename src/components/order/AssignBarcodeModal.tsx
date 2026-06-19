@@ -1,3 +1,4 @@
+import { getCategoryName } from "@/constants/const";
 import { OrderLine } from "@/types/order";
 import { Product } from "@/types/product";
 import {
@@ -65,7 +66,7 @@ export default function AssignBarcodeModal({
                   </Text>
                   <Text style={styles.assignCode}>
                     {item.item_code}
-                    {product?.category ? ` · ${product.category}` : ""}
+                    {product?.category ? ` · ${getCategoryName(product.category)}` : ""}
                   </Text>
                 </Pressable>
               );

@@ -1,5 +1,6 @@
 import { updateBarcode } from "@/api/updateBarcode";
 import BarcodeScanner from "@/components/BarcodeScanner";
+import { getCategoryName } from "@/constants/const";
 import { useProducts } from "@/hooks/useProducts";
 import { useZebraScanner } from "@/hooks/useZebraScanner";
 import useBarcodeStore from "@/store/useBarcodeStore";
@@ -96,7 +97,7 @@ export default function ScannedTab() {
         <Text style={tabStyles.productName}>{item.productName}</Text>
         <Text style={tabStyles.productMeta}>
           {item.product_id}
-          {item.category ? ` · ${item.category}` : ""}
+          {item.category ? ` · ${getCategoryName(item.category)}` : ""}
           {item.total_quantity ? ` | status: ${item.total_quantity}` : ""}
         </Text>
         <Text style={styles.barcodeValue}>{item.barcode}</Text>
