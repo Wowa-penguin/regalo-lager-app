@@ -39,6 +39,7 @@ const constants = {
   subtleBorder: "#EDE8E2",
   font: Platform.OS === "ios" ? "System" : "monospace",
   apiUrl: process.env.EXPO_PUBLIC_API_URL ?? "",
+  appSecret: process.env.EXPO_PUBLIC_APP_SECRET ?? "",
 };
 
 export default constants;
