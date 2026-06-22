@@ -1,7 +1,9 @@
 import { createBarcode } from "@/api/createBarcode";
 import { saveSortConfig } from "@/api/saveSortConfig";
 import BarcodeScanner from "@/components/BarcodeScanner";
+import NavMenu from "@/components/NavMenu";
 import { CATEGORY_ORDER, getCategoryName } from "@/constants/const";
+import { useLogout } from "@/hooks/useLogout";
 import { useProducts } from "@/hooks/useProducts";
 import { useZebraScanner } from "@/hooks/useZebraScanner";
 import useBarcodeStore from "@/store/useBarcodeStore";
@@ -33,6 +35,7 @@ type SortItem = {
 
 export default function SortTab() {
   const user = useStore((s) => s.user);
+  const handleLogout = useLogout();
   const { products, loading: productsLoading } = useProducts();
   const findProductId = useBarcodeStore((s) => s.findProductId);
   const addBarcode = useBarcodeStore((s) => s.addBarcode);
@@ -540,8 +543,11 @@ export default function SortTab() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitleLarge}>Röðun</Text>
-        <Text style={styles.headerSub}>Velja flokk til að stilla tíniröð</Text>
+        <View>
+          <Text style={styles.headerTitleLarge}>Röðun</Text>
+          <Text style={styles.headerSub}>Velja flokk til að stilla tíniröð</Text>
+        </View>
+        <NavMenu onLogout={handleLogout} />
       </View>
 
       {productsLoading ? (

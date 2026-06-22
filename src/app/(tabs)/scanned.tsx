@@ -1,6 +1,8 @@
 import { updateBarcode } from "@/api/updateBarcode";
 import BarcodeScanner from "@/components/BarcodeScanner";
+import NavMenu from "@/components/NavMenu";
 import { getCategoryName } from "@/constants/const";
+import { useLogout } from "@/hooks/useLogout";
 import { useProducts } from "@/hooks/useProducts";
 import { useZebraScanner } from "@/hooks/useZebraScanner";
 import useBarcodeStore from "@/store/useBarcodeStore";
@@ -33,6 +35,7 @@ type ScannedItem = BarcodeMapping & {
 
 export default function ScannedTab() {
   const user = useStore((s) => s.user);
+  const handleLogout = useLogout();
   const barcodes = useBarcodeStore((s) => s.barcodes);
   const updateBarcodeInStore = useBarcodeStore((s) => s.updateBarcode);
 
@@ -118,8 +121,11 @@ export default function ScannedTab() {
   return (
     <SafeAreaView style={tabStyles.container}>
       <View style={tabStyles.header}>
-        <Text style={tabStyles.headerTitle}>Skannað</Text>
-        <Text style={tabStyles.headerSub}>{barcodes.length} skráð</Text>
+        <View>
+          <Text style={tabStyles.headerTitle}>Skannað</Text>
+          <Text style={tabStyles.headerSub}>{barcodes.length} skráð</Text>
+        </View>
+        <NavMenu onLogout={handleLogout} />
       </View>
 
       <View style={tabStyles.searchRow}>

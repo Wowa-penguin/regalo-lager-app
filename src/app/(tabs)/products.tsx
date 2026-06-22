@@ -1,6 +1,8 @@
 import { createBarcode } from "@/api/createBarcode";
 import BarcodeScanner from "@/components/BarcodeScanner";
+import NavMenu from "@/components/NavMenu";
 import { getCategoryName } from "@/constants/const";
+import { useLogout } from "@/hooks/useLogout";
 import { useProducts } from "@/hooks/useProducts";
 import { useZebraScanner } from "@/hooks/useZebraScanner";
 import useBarcodeStore from "@/store/useBarcodeStore";
@@ -27,6 +29,7 @@ const USE_ZEBRA = Platform.OS === "android";
 
 export default function ProductsTab() {
   const user = useStore((s) => s.user);
+  const handleLogout = useLogout();
   const barcodes = useBarcodeStore((s) => s.barcodes);
   const addBarcode = useBarcodeStore((s) => s.addBarcode);
 
@@ -111,10 +114,13 @@ export default function ProductsTab() {
   return (
     <SafeAreaView style={tabStyles.container}>
       <View style={tabStyles.header}>
-        <Text style={tabStyles.headerTitle}>Vörur</Text>
-        <Text style={tabStyles.headerSub}>
-          {unregistered.length} án strikamerkis
-        </Text>
+        <View>
+          <Text style={tabStyles.headerTitle}>Vörur</Text>
+          <Text style={tabStyles.headerSub}>
+            {unregistered.length} án strikamerkis
+          </Text>
+        </View>
+        <NavMenu onLogout={handleLogout} />
       </View>
 
       <View style={tabStyles.searchRow}>

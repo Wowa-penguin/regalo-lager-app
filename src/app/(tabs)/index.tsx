@@ -1,12 +1,12 @@
 import { createInvoiceNotes } from "@/api/createInvoiceNotes";
 import { fetchInvoiceNotes } from "@/api/fetchInvoiceNotes";
-import { fetchLogout } from "@/api/fetchLogout";
 import { fetchMessage } from "@/api/fetchMessage";
 import { fetchOrders } from "@/api/fetchOrders";
-import useStore, { clearSession } from "@/store/useStore";
+import NavMenu from "@/components/NavMenu";
+import { useLogout } from "@/hooks/useLogout";
+import useStore from "@/store/useStore";
 import { Message } from "@/types/message";
 import { Order } from "@/types/order";
-import { setAuthToken } from "@/utils/auth";
 import { Redirect, router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -24,7 +24,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function Index() {
   const user = useStore((s) => s.user);
-  const logout = useStore((s) => s.logout);
+  const handleLogout = useLogout();
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [message, setMessage] = useState<Message>();
@@ -65,25 +65,6 @@ export default function Index() {
   useEffect(() => {
     if (user.username) loadOrders();
   }, [user.username]);
-
-  const handleLogout = async () => {
-    try {
-      const logoutRes = await fetchLogout();
-      if (logoutRes.status !== "success") {
-        Alert.alert("Error", logoutRes.detail ?? "Failed to log out");
-        return;
-      }
-    } catch (e: unknown) {
-      Alert.alert(
-        "Error",
-        e instanceof Error ? e.message : "Failed to log out",
-      );
-      return;
-    }
-    setAuthToken(null);
-    await clearSession();
-    logout();
-  };
 
   const activeFilterCount = [
     zipFilter,
@@ -211,9 +192,7 @@ export default function Index() {
           )}
           <Text style={styles.headerSub}>Notandi: {user.username}</Text>
         </View>
-        <Pressable onPress={handleLogout} style={styles.logoutButton}>
-          <Text style={styles.logoutText}>Skrá út</Text>
-        </Pressable>
+        <NavMenu onLogout={handleLogout} />
       </View>
 
       <View style={styles.searchRow}>
@@ -413,15 +392,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#aaa",
     marginTop: 1,
-  },
-  logoutButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  logoutText: {
-    color: "#888",
-    fontSize: 15,
-    fontWeight: "500",
   },
   searchRow: {
     flexDirection: "row",
