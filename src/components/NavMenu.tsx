@@ -2,11 +2,15 @@ import { router, usePathname } from "expo-router";
 import { useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 
-const NAV_ITEMS: { label: string; path: "/" | "/products" | "/scanned" | "/sort" }[] = [
+const NAV_ITEMS: {
+  label: string;
+  path: "/" | "/products" | "/scanned" | "/sort" | "/sendingar";
+}[] = [
   { label: "Pantanir", path: "/" },
   { label: "Skrá", path: "/products" },
   { label: "Breyta", path: "/scanned" },
   { label: "Röðun", path: "/sort" },
+  { label: "Sendingar", path: "/sendingar" },
 ];
 
 interface Props {
