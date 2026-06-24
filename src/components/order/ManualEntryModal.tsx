@@ -1,6 +1,13 @@
 import { OrderLine } from "@/types/order";
 import { useEffect, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 interface Props {
@@ -50,7 +57,21 @@ export default function ManualEntryModal({
               <Text style={styles.counterBtnText}>−</Text>
             </Pressable>
 
-            <Text style={styles.counterValue}>{count}</Text>
+            <TextInput
+              style={styles.counterValue}
+              value={String(count)}
+              onChangeText={(t) => {
+                const digits = t.replace(/[^0-9]/g, "");
+                if (digits === "") {
+                  setCount(0);
+                  return;
+                }
+                const n = parseInt(digits, 10);
+                setCount(Math.min(line?.quantity ?? 0, Math.max(0, n)));
+              }}
+              keyboardType="number-pad"
+              selectTextOnFocus
+            />
 
             <Pressable
               style={[

@@ -152,8 +152,8 @@ export default function Index() {
       onPress={() => pushToOrder(item.invoice_number)}
     >
       <View style={styles.cardTop}>
-        <Text style={styles.customerName} numberOfLines={1}>
-          {item.customer_name}
+        <Text style={styles.customerName} numberOfLines={2}>
+          {item.customer_name} {item.ir_name ? `- ${item.ir_name}` : null}
         </Text>
         <View style={styles.cardRight}>
           <Text style={styles.invoiceNumber}>#{item.invoice_number}</Text>

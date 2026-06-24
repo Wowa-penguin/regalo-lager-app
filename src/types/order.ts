@@ -24,6 +24,7 @@ export interface Order {
   payment_mode: string;
   hstatus: string;
   finished: boolean;
+  ir_name: string;
   description_text_1: string;
   description_text_2: string;
   lines?: OrderLine[];
