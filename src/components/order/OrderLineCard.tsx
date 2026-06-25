@@ -10,6 +10,7 @@ interface Props {
   isBarcodeMapped: boolean;
   product: Product | undefined;
   onPressStatus: () => void;
+  onPressCard: () => void;
 }
 
 export default function OrderLineCard({
@@ -19,6 +20,7 @@ export default function OrderLineCard({
   isBarcodeMapped,
   product,
   onPressStatus,
+  onPressCard,
 }: Props) {
   const isComplete = picked >= line.quantity;
   const isPartial = picked > 0 && !isComplete;
@@ -26,7 +28,8 @@ export default function OrderLineCard({
   const isMissingPartial = missing > 0 && picked > 0 && !isComplete;
 
   return (
-    <View
+    <Pressable
+      onPress={onPressCard}
       style={[
         styles.lineCard,
         isPartial && styles.lineCardPartial,
@@ -101,7 +104,7 @@ export default function OrderLineCard({
         </Pressable>
         <Text style={styles.checkmark}>{isBarcodeMapped ? "✅" : "❌"}</Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 

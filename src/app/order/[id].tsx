@@ -3,6 +3,7 @@ import { deleteInvoiceNotes } from "@/api/fetchInvoiceNotes";
 import { fetchOrder } from "@/api/fetchOrder";
 import { finishOrder } from "@/api/finishOrder";
 import { unfinishOrder } from "@/api/unfinishOrder";
+import { updateBarcode } from "@/api/updateBarcode";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import AssignBarcodeModal from "@/components/order/AssignBarcodeModal";
 import ManualEntryModal from "@/components/order/ManualEntryModal";
@@ -21,6 +22,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   FlatList,
   Platform,
@@ -75,6 +77,8 @@ export default function OrderDetail() {
     unit: string;
   } | null>(null);
   const [iosScanOpen, setIosScanOpen] = useState(false);
+  const [changeBarcodeTarget, setChangeBarcodeTarget] =
+    useState<OrderLine | null>(null);
 
   const pickedCounts = useStore(
     (s) => s.pickedOrders[invoiceNumber] ?? EMPTY_COUNTS,
@@ -89,6 +93,7 @@ export default function OrderDetail() {
 
   const findProductId = useBarcodeStore((s) => s.findProductId);
   const addBarcode = useBarcodeStore((s) => s.addBarcode);
+  const updateBarcodeInStore = useBarcodeStore((s) => s.updateBarcode);
   const barcodes = useBarcodeStore((s) => s.barcodes);
 
   useEffect(() => {
@@ -281,9 +286,41 @@ export default function OrderDetail() {
     showToast(`✓  ${line.description || line.item_code}`);
   };
 
+  const handleChangeBarcodeScanned = async (data: string) => {
+    const target = changeBarcodeTarget;
+    setChangeBarcodeTarget(null);
+    if (!target) {
+      processingRef.current = false;
+      return;
+    }
+    try {
+      const existing = barcodes.find((b) => b.product_id === target.item_code);
+      if (existing) {
+        const updated = await updateBarcode(existing.id, { barcode: data });
+        updateBarcodeInStore(existing.id, { barcode: updated.barcode });
+      } else {
+        const mapping = await createBarcode(data, target.item_code);
+        addBarcode(mapping);
+      }
+      showToast(`✓ Strikamerki uppfært`);
+    } catch (e: unknown) {
+      Alert.alert(
+        "Villa",
+        e instanceof Error ? e.message : "Failed to update barcode",
+      );
+    } finally {
+      processingRef.current = false;
+    }
+  };
+
   const handleScanned = (data: string) => {
     if (processingRef.current) return;
     processingRef.current = true;
+
+    if (changeBarcodeTarget) {
+      handleChangeBarcodeScanned(data);
+      return;
+    }
 
     if (!order?.lines) {
       processingRef.current = false;
@@ -374,6 +411,29 @@ export default function OrderDetail() {
     processingRef.current = false;
   };
 
+  const promptChangeBarcode = (line: OrderLine) => {
+    Alert.alert(
+      "Breyta strikamerki",
+      `Viltu breyta strikamerki fyrir „${line.description || line.item_code}"?`,
+      [
+        { text: "Hætta", style: "cancel" },
+        {
+          text: "Já",
+          onPress: () => {
+            processingRef.current = false;
+            setChangeBarcodeTarget(line);
+            if (Platform.OS !== "android") setIosScanOpen(true);
+          },
+        },
+      ],
+    );
+  };
+
+  const cancelChangeBarcode = () => {
+    setChangeBarcodeTarget(null);
+    processingRef.current = false;
+  };
+
   const closeWrongOrder = () => {
     setWrongOrderProduct(null);
     processingRef.current = false;
@@ -458,6 +518,7 @@ export default function OrderDetail() {
                     initialCount: attributedPicks.get(item) ?? 0,
                   })
                 }
+                onPressCard={() => promptChangeBarcode(item)}
               />
             )}
             contentContainerStyle={[
@@ -482,6 +543,18 @@ export default function OrderDetail() {
           {toastMessage}
         </Text>
       </Animated.View>
+
+      {changeBarcodeTarget && (
+        <View style={styles.changeBarcodeBanner}>
+          <Text style={styles.changeBarcodeText} numberOfLines={1}>
+            ⊙ Skanna nýtt strikamerki:{" "}
+            {changeBarcodeTarget.description || changeBarcodeTarget.item_code}
+          </Text>
+          <Pressable onPress={cancelChangeBarcode}>
+            <Text style={styles.changeBarcodeCancelText}>Hætta við</Text>
+          </Pressable>
+        </View>
+      )}
 
       <AssignBarcodeModal
         pendingBarcode={pendingBarcode}
@@ -726,5 +799,35 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     textAlign: "center",
+  },
+  changeBarcodeBanner: {
+    position: "absolute",
+    bottom: 54,
+    left: 16,
+    right: 16,
+    borderRadius: 12,
+    backgroundColor: "#208AEF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  changeBarcodeText: {
+    flex: 1,
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  changeBarcodeCancelText: {
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });
