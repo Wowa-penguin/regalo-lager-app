@@ -1,9 +1,10 @@
 import { createBarcode } from "@/api/createBarcode";
+import { fetchFinishedOrder } from "@/api/fetchFinishedOrder";
 import { deleteInvoiceNotes } from "@/api/fetchInvoiceNotes";
 import { fetchOrder } from "@/api/fetchOrder";
 import { finishOrder } from "@/api/finishOrder";
 import { unfinishOrder } from "@/api/unfinishOrder";
-import { updateBarcode } from "@/api/updateBarcode";
+import { BarcodeConflictError, updateBarcode } from "@/api/updateBarcode";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import AssignBarcodeModal from "@/components/order/AssignBarcodeModal";
 import ManualEntryModal from "@/components/order/ManualEntryModal";
@@ -104,6 +105,29 @@ export default function OrderDetail() {
       )
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (!order?.finished) return;
+    fetchFinishedOrder(invoiceNumber)
+      .then((data) => {
+        const collected = new Map<string, number>();
+        const ordered = new Map<string, number>();
+        for (const l of data.lines) {
+          const qty = parseFloat(l.collected_qty) || 0;
+          const ord = parseFloat(l.ordered_qty) || 0;
+          collected.set(l.item_code, (collected.get(l.item_code) ?? 0) + qty);
+          ordered.set(l.item_code, (ordered.get(l.item_code) ?? 0) + ord);
+        }
+        for (const [itemCode, qty] of collected) {
+          if (qty === 0) {
+            setItemMissing(invoiceNumber, itemCode, ordered.get(itemCode) ?? 0);
+          } else {
+            setItemPicked(invoiceNumber, itemCode, qty);
+          }
+        }
+      })
+      .catch(() => {});
+  }, [order?.finished, invoiceNumber]);
 
   useEffect(() => {
     return () => {
@@ -304,10 +328,16 @@ export default function OrderDetail() {
       }
       showToast(`✓ Strikamerki uppfært`);
     } catch (e: unknown) {
-      Alert.alert(
-        "Villa",
-        e instanceof Error ? e.message : "Failed to update barcode",
-      );
+      if (e instanceof BarcodeConflictError) {
+        const conflictProduct = productMap.get(e.existing.product_id);
+        const name = conflictProduct?.name ?? e.existing.product_id;
+        Alert.alert("Villa", `Strikamerkið er þegar skráð á: ${name}`);
+      } else {
+        Alert.alert(
+          "Villa",
+          e instanceof Error ? e.message : "Failed to update barcode",
+        );
+      }
     } finally {
       processingRef.current = false;
     }
