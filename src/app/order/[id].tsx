@@ -581,7 +581,7 @@ export default function OrderDetail() {
               styles.list,
               Platform.OS !== "android" && !allDone && { paddingBottom: 110 },
             ]}
-            ListFooterComponent={
+            ListHeaderComponent={
               <View style={styles.basketCard}>
                 <Text style={styles.basketLabel}>Körfunúmer</Text>
                 <TextInput
@@ -914,7 +914,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 4,
+    marginBottom: 10,
   },
   basketLabel: {
     fontSize: 15,
