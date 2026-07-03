@@ -13,6 +13,7 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -26,6 +27,7 @@ export default function SendingarTab() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
   const [collectedCounts, setCollectedCounts] = useState<Record<number, number>>({});
   const [collectTarget, setCollectTarget] = useState<{
     item: Lyko;
@@ -58,6 +60,15 @@ export default function SendingarTab() {
     loadInvoices(true);
   };
 
+  const q = search.trim().toLowerCase();
+  const filteredInvoices = q
+    ? invoices.filter(
+        (i) =>
+          i.name.toLowerCase().includes(q) ||
+          i.product_id.toLowerCase().includes(q),
+      )
+    : invoices;
+
   const openCollectModal = (item: Lyko) => {
     setCollectTarget({ item, initialCount: collectedCounts[item.id] ?? item.quantity });
   };
@@ -83,6 +94,18 @@ export default function SendingarTab() {
         <NavMenu onLogout={handleLogout} />
       </View>
 
+      <View style={styles.searchRow}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Leita að vöru..."
+          placeholderTextColor="#aaa"
+          value={search}
+          onChangeText={setSearch}
+          clearButtonMode="while-editing"
+          autoCorrect={false}
+        />
+      </View>
+
       {loading ? (
         <View style={tabStyles.centered}>
           <ActivityIndicator size="large" color="#208AEF" />
@@ -96,7 +119,7 @@ export default function SendingarTab() {
         </View>
       ) : (
         <FlatList
-          data={invoices}
+          data={filteredInvoices}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={tabStyles.list}
           refreshControl={
@@ -207,5 +230,20 @@ const styles = StyleSheet.create({
   },
   collectBtnTextDone: {
     color: "#fff",
+  },
+  searchRow: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2DAD3",
+  },
+  searchInput: {
+    backgroundColor: "#F2F0ED",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    fontSize: 15,
+    color: "#1a1a1a",
   },
 });
