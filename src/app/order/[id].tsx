@@ -30,6 +30,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -50,6 +51,8 @@ export default function OrderDetail() {
 
   const { products } = useProducts();
   const player = useAudioPlayer(audioSource);
+
+  const [basketNumber, setBasketNumber] = useState<number | null>(0);
 
   // Toast
   const [toastMessage, setToastMessage] = useState("");
@@ -125,6 +128,7 @@ export default function OrderDetail() {
             setItemPicked(invoiceNumber, itemCode, qty);
           }
         }
+        setBasketNumber(data.basket);
       })
       .catch(() => {});
   }, [order?.finished, invoiceNumber]);
@@ -407,14 +411,36 @@ export default function OrderDetail() {
       return;
     }
 
+    if (basketNumber == 0) {
+      Alert.alert(
+        "Körfunúmer vantar",
+        "Viltu klára pöntunina án körfunúmers?",
+        [
+          { text: "Hætta við", style: "cancel" },
+          { text: "Klára án körfu", onPress: doFinish },
+        ],
+      );
+      return;
+    }
+
+    doFinish();
+  };
+
+  const doFinish = async () => {
+    if (!order) return;
     setFinishing(true);
     setFinishError("");
     try {
-      const lines = (order.lines ?? []).map((l) => ({
+      const finishLines = (order.lines ?? []).map((l) => ({
         line_id: l.id,
         collected_qty: attributedPicks.get(l) ?? 0,
       }));
-      await finishOrder(invoiceNumber, user.username, lines);
+      await finishOrder(
+        invoiceNumber,
+        user.username,
+        basketNumber,
+        finishLines,
+      );
       setOrder((o) => (o ? { ...o, finished: true } : o));
     } catch (e: unknown) {
       setFinishError(e instanceof Error ? e.message : "Failed to finish order");
@@ -555,6 +581,25 @@ export default function OrderDetail() {
               styles.list,
               Platform.OS !== "android" && !allDone && { paddingBottom: 110 },
             ]}
+            ListFooterComponent={
+              <View style={styles.basketCard}>
+                <Text style={styles.basketLabel}>Körfunúmer</Text>
+                <TextInput
+                  style={styles.basketInput}
+                  value={basketNumber != null ? String(basketNumber) : ""}
+                  onChangeText={(t) => {
+                    const digits = t.replace(/[^0-9]/g, "");
+                    setBasketNumber(
+                      digits === "" ? null : parseInt(digits, 10),
+                    );
+                  }}
+                  keyboardType="number-pad"
+                  placeholder="—"
+                  placeholderTextColor="#bbb"
+                  editable={!order?.finished}
+                />
+              </View>
+            }
           />
 
           {!!finishError && (
@@ -859,5 +904,28 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.75)",
     fontSize: 14,
     fontWeight: "600",
+  },
+  basketCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2DAD3",
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
+  basketLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#555",
+  },
+  basketInput: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#1a1a1a",
+    minWidth: 60,
+    textAlign: "right",
   },
 });

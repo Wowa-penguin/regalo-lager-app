@@ -1,20 +1,6 @@
 import constants from "@/constants/const";
+import { FinishedOrder } from "@/types/finishedOrder";
 import { getAuthHeaders } from "@/utils/auth";
-
-export interface FinishedOrderLine {
-  item_code: string;
-  description: string;
-  ordered_qty: string;
-  collected_qty: string;
-}
-
-export interface FinishedOrder {
-  invoice_number: number;
-  customer_name: string;
-  name: string;
-  date: string;
-  lines: FinishedOrderLine[];
-}
 
 export const fetchFinishedOrder = async (
   invoiceNumber: number,
