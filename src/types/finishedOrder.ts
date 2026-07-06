@@ -9,7 +9,7 @@ export interface FinishedOrder {
   invoice_number: number;
   customer_name: string;
   name: string;
-  basket: number;
+  baskets: number[];
   date: string;
   lines: FinishedOrderLine[];
 }

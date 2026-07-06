@@ -9,7 +9,7 @@ interface FinishLine {
 export const finishOrder = async (
   invoiceNumber: number,
   username: string,
-  basket: number | null,
+  baskets: number[],
   lines: FinishLine[],
 ): Promise<void> => {
   const res = await fetch(
@@ -17,7 +17,7 @@ export const finishOrder = async (
     {
       method: "POST",
       headers: getAuthHeaders(),
-      body: JSON.stringify({ name: username, basket, lines }),
+      body: JSON.stringify({ name: username, baskets, lines }),
     },
   );
   if (!res.ok) {

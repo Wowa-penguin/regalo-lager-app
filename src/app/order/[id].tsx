@@ -52,7 +52,9 @@ export default function OrderDetail() {
   const { products } = useProducts();
   const player = useAudioPlayer(audioSource);
 
-  const [basketNumber, setBasketNumber] = useState<number | null>(0);
+  const [baskets, setBaskets] = useState<number[]>([]);
+  const [addingBasket, setAddingBasket] = useState(false);
+  const [pendingBasket, setPendingBasket] = useState("");
 
   // Toast
   const [toastMessage, setToastMessage] = useState("");
@@ -128,7 +130,7 @@ export default function OrderDetail() {
             setItemPicked(invoiceNumber, itemCode, qty);
           }
         }
-        setBasketNumber(data.basket);
+        setBaskets(data.baskets ?? []);
       })
       .catch(() => {});
   }, [order?.finished, invoiceNumber]);
@@ -411,9 +413,9 @@ export default function OrderDetail() {
       return;
     }
 
-    if (basketNumber == 0) {
+    if (baskets.length === 0) {
       Alert.alert(
-        "Körfunúmer vantar",
+        "Körfur vantar",
         "Viltu klára pöntunina án körfunúmers?",
         [
           { text: "Hætta við", style: "cancel" },
@@ -438,7 +440,7 @@ export default function OrderDetail() {
       await finishOrder(
         invoiceNumber,
         user.username,
-        basketNumber,
+        baskets,
         finishLines,
       );
       setOrder((o) => (o ? { ...o, finished: true } : o));
@@ -583,21 +585,56 @@ export default function OrderDetail() {
             ]}
             ListHeaderComponent={
               <View style={styles.basketCard}>
-                <Text style={styles.basketLabel}>Körfunúmer</Text>
-                <TextInput
-                  style={styles.basketInput}
-                  value={basketNumber != null ? String(basketNumber) : ""}
-                  onChangeText={(t) => {
-                    const digits = t.replace(/[^0-9]/g, "");
-                    setBasketNumber(
-                      digits === "" ? null : parseInt(digits, 10),
-                    );
-                  }}
-                  keyboardType="number-pad"
-                  placeholder="—"
-                  placeholderTextColor="#bbb"
-                  editable={!order?.finished}
-                />
+                <Text style={styles.basketLabel}>Körfur</Text>
+                <View style={styles.basketChips}>
+                  {baskets.map((b, i) => (
+                    <View key={i} style={styles.basketChip}>
+                      <Text style={styles.basketChipText}>{b}</Text>
+                      {!order?.finished && (
+                        <Pressable
+                          onPress={() =>
+                            setBaskets((prev) => prev.filter((_, j) => j !== i))
+                          }
+                          hitSlop={6}
+                        >
+                          <Text style={styles.basketChipRemove}>✕</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  ))}
+                  {addingBasket ? (
+                    <TextInput
+                      style={styles.basketChipInput}
+                      value={pendingBasket}
+                      onChangeText={setPendingBasket}
+                      keyboardType="number-pad"
+                      autoFocus
+                      placeholder="#"
+                      placeholderTextColor="#bbb"
+                      onSubmitEditing={() => {
+                        const n = parseInt(pendingBasket, 10);
+                        if (!isNaN(n) && n > 0)
+                          setBaskets((prev) => [...prev, n]);
+                        setPendingBasket("");
+                        setAddingBasket(false);
+                      }}
+                      onBlur={() => {
+                        const n = parseInt(pendingBasket, 10);
+                        if (!isNaN(n) && n > 0)
+                          setBaskets((prev) => [...prev, n]);
+                        setPendingBasket("");
+                        setAddingBasket(false);
+                      }}
+                    />
+                  ) : !order?.finished ? (
+                    <Pressable
+                      style={styles.basketAddBtn}
+                      onPress={() => setAddingBasket(true)}
+                    >
+                      <Text style={styles.basketAddBtnText}>+</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
               </View>
             }
           />
@@ -915,17 +952,62 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 10,
+    gap: 12,
   },
   basketLabel: {
     fontSize: 15,
     fontWeight: "600",
     color: "#555",
   },
-  basketInput: {
-    fontSize: 22,
+  basketChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  basketChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#EBF5FF",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  basketChipText: {
+    fontSize: 15,
     fontWeight: "700",
-    color: "#1a1a1a",
-    minWidth: 60,
-    textAlign: "right",
+    color: "#208AEF",
+  },
+  basketChipRemove: {
+    fontSize: 11,
+    color: "#208AEF",
+    fontWeight: "700",
+  },
+  basketChipInput: {
+    backgroundColor: "#EBF5FF",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#208AEF",
+    minWidth: 48,
+    textAlign: "center",
+  },
+  basketAddBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#208AEF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  basketAddBtnText: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "600",
+    lineHeight: 24,
   },
 });
