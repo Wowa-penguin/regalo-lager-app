@@ -137,10 +137,9 @@ export default function OrderDetail() {
 
   useEffect(() => {
     return () => {
-      deleteInvoiceNotes(invoiceNumber).catch(() => {});
       if (toastTimer.current) clearTimeout(toastTimer.current);
     };
-  }, [invoiceNumber]);
+  }, []);
 
   const playErrorSound = () => {
     player.volume = 1.0;

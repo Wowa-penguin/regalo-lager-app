@@ -163,7 +163,10 @@ export default function Index() {
         </View>
       </View>
       <View style={styles.cardBottom}>
-        <Text style={styles.cardMeta}>{item.date}</Text>
+        <View style={styles.cardBottomLeft}>
+          <Text style={styles.cardZip}>Póst: {item.zip_code}</Text>
+          <Text style={styles.cardMeta}>{item.date}</Text>
+        </View>
         {!!item.hstatus && (
           <View style={styles.statusBadge}>
             <Text style={styles.statusBadgeText}>{item.hstatus}</Text>
@@ -551,10 +554,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
+  cardBottomLeft: {
+    flex: 1,
+    gap: 8,
+  },
+  cardZip: {
+    fontSize: 14,
+    color: "#aaa",
+    fontWeight: "500",
+  },
   cardMeta: {
     fontSize: 13,
     color: "#aaa",
-    flex: 1,
   },
   cardRight: {
     alignItems: "flex-end",
