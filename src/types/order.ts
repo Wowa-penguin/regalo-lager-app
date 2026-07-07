@@ -22,6 +22,7 @@ export interface Order {
   total: number;
   discount: number;
   payment_mode: string;
+  sales_person: string;
   hstatus: string;
   finished: boolean;
   ir_name: string;

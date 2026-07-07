@@ -164,19 +164,30 @@ export default function Index() {
       </View>
       <View style={styles.cardBottom}>
         <View style={styles.cardBottomLeft}>
-          <Text style={styles.cardZip}>Póst: {item.zip_code}</Text>
+          <Text style={styles.cardZip}>
+            Póstnúmer:{" "}
+            <Text style={{ fontWeight: "700" }}>{item.zip_code}</Text>
+          </Text>
           <Text style={styles.cardMeta}>{item.date}</Text>
+          <Text style={styles.cardSalesPerson}>
+            Sölu manneskja{" "}
+            <Text style={{ fontWeight: "700" }}>
+              {item.sales_person ? item.sales_person : "ekki skráð"}
+            </Text>
+          </Text>
         </View>
-        {!!item.hstatus && (
-          <View style={styles.statusBadge}>
-            <Text style={styles.statusBadgeText}>{item.hstatus}</Text>
-          </View>
-        )}
-        {item.finished && (
-          <View style={styles.finishedBadge}>
-            <Text style={styles.finishedBadgeText}>Finished</Text>
-          </View>
-        )}
+        <View style={{ gap: 10 }}>
+          {!!item.hstatus && (
+            <View style={styles.statusBadge}>
+              <Text style={styles.statusBadgeText}>{item.hstatus}</Text>
+            </View>
+          )}
+          {item.finished && (
+            <View style={styles.finishedBadge}>
+              <Text style={styles.finishedBadgeText}>Klárað</Text>
+            </View>
+          )}
+        </View>
       </View>
     </Pressable>
   );
@@ -565,6 +576,10 @@ const styles = StyleSheet.create({
   },
   cardMeta: {
     fontSize: 13,
+    color: "#aaa",
+  },
+  cardSalesPerson: {
+    fontSize: 14,
     color: "#aaa",
   },
   cardRight: {
