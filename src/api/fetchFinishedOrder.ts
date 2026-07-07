@@ -13,3 +13,12 @@ export const fetchFinishedOrder = async (
   if (!res.ok) throw new Error(json.error ?? `Server error ${res.status}`);
   return json as FinishedOrder;
 };
+
+export const fetchAllFinishedOrders = async () => {
+  const res = await fetch(`${constants.apiUrl}/regalo/orders/finished`, {
+    headers: getAuthHeaders(),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? `Server error ${res.status}`);
+  return json as FinishedOrder[];
+};

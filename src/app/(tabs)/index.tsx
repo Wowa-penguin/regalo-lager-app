@@ -1,10 +1,12 @@
 import { createInvoiceNotes } from "@/api/createInvoiceNotes";
+import { fetchAllFinishedOrders } from "@/api/fetchFinishedOrder";
 import { fetchInvoiceNotes } from "@/api/fetchInvoiceNotes";
 import { fetchMessage } from "@/api/fetchMessage";
 import { fetchOrders } from "@/api/fetchOrders";
 import NavMenu from "@/components/NavMenu";
 import { useLogout } from "@/hooks/useLogout";
 import useStore from "@/store/useStore";
+import { FinishedOrder } from "@/types/finishedOrder";
 import { Message } from "@/types/message";
 import { Order } from "@/types/order";
 import { Redirect, router } from "expo-router";
@@ -28,6 +30,7 @@ export default function Index() {
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [message, setMessage] = useState<Message>();
+  const [finishedOrders, setFinishedOrders] = useState<FinishedOrder[]>();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -52,8 +55,10 @@ export default function Index() {
     try {
       const data = await fetchOrders();
       const message = await fetchMessage();
+      const finishedOrders = await fetchAllFinishedOrders();
       setOrders(data);
       setMessage(message);
+      setFinishedOrders(finishedOrders);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load orders");
     } finally {
@@ -145,6 +150,13 @@ export default function Index() {
     }
   };
 
+  const getBasketsNumber = (invoice_number: number) => {
+    const fOrder = finishedOrders?.find(
+      (f) => f.invoice_number === invoice_number,
+    );
+    return fOrder?.baskets;
+  };
+
   const renderOrder = ({ item }: { item: Order }) => (
     <Pressable
       android_ripple={{ color: "#E2DAD3" }}
@@ -180,6 +192,13 @@ export default function Index() {
           {!!item.hstatus && (
             <View style={styles.statusBadge}>
               <Text style={styles.statusBadgeText}>{item.hstatus}</Text>
+            </View>
+          )}
+          {item.finished && (
+            <View style={styles.basketBadge}>
+              <Text style={styles.basketBadgeText}>
+                Körfur: {getBasketsNumber(item.invoice_number)?.join(", ") ?? "—"}
+              </Text>
             </View>
           )}
           {item.finished && (
@@ -598,6 +617,17 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   statusBadgeText: {
+    fontSize: 12,
+    color: "#666",
+    fontWeight: "600",
+  },
+  basketBadge: {
+    backgroundColor: "#F0F0F0",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  basketBadgeText: {
     fontSize: 12,
     color: "#666",
     fontWeight: "600",
