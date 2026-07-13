@@ -81,7 +81,10 @@ export default function Login() {
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
             <Pressable
-              style={[styles.userCard, signingInAs === item && styles.userCardDisabled]}
+              style={[
+                styles.userCard,
+                signingInAs === item && styles.userCardDisabled,
+              ]}
               onPress={() => handleSelect(item)}
               disabled={signingInAs !== null}
             >

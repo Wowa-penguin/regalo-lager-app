@@ -12,6 +12,7 @@ export const fetchLogin = async (username: string): Promise<LoginResponse> => {
     body: JSON.stringify({ username, secret: constants.appSecret }),
   });
   const data = await res.json();
+  if (res.status === 203) throw new Error(data.message);
   if (!res.ok) throw new Error(data.error ?? "Login failed");
   return data as LoginResponse;
 };
