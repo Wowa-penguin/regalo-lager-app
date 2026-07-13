@@ -9,8 +9,8 @@ import useStore from "@/store/useStore";
 import { FinishedOrder } from "@/types/finishedOrder";
 import { Message } from "@/types/message";
 import { Order } from "@/types/order";
-import { Redirect, router } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { Redirect, router, useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -70,6 +70,18 @@ export default function Index() {
   useEffect(() => {
     if (user.username) loadOrders();
   }, [user.username]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!user.username) return;
+      Promise.all([fetchOrders(), fetchAllFinishedOrders()])
+        .then(([ordersData, finishedData]) => {
+          setOrders(ordersData);
+          setFinishedOrders(finishedData);
+        })
+        .catch(() => {});
+    }, [user.username]),
+  );
 
   const activeFilterCount = [
     zipFilter,
