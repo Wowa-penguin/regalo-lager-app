@@ -1,4 +1,5 @@
 import constants from "@/constants/const";
+import { BarcodeConflictError } from "@/api/updateBarcode";
 import { BarcodeMapping } from "@/types/barcode";
 import { getAuthHeaders } from "@/utils/auth";
 
@@ -13,6 +14,7 @@ export const createBarcode = async (
   });
 
   const json = await res.json();
+  if (res.status === 409 && json.existing) throw new BarcodeConflictError(json.existing);
   if (!res.ok) throw new Error(json.error ?? `Server error ${res.status}`);
   return json as BarcodeMapping;
 };

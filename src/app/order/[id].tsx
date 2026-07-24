@@ -335,8 +335,34 @@ export default function OrderDetail() {
     } catch (e: unknown) {
       if (e instanceof BarcodeConflictError) {
         const conflictProduct = productMap.get(e.existing.product_id);
-        const name = conflictProduct?.name ?? e.existing.product_id;
-        Alert.alert("Villa", `Strikamerkið er þegar skráð á: ${name}`);
+        const conflictName = conflictProduct?.name ?? e.existing.product_id;
+        const targetName = target.description || target.item_code;
+        Alert.alert(
+          "Strikamerki í notkun",
+          `Þetta strikamerki tilheyrir „${conflictName}". Viltu færa það yfir á „${targetName}"?`,
+          [
+            { text: "Hætta við", style: "cancel" },
+            {
+              text: "Já, færa yfir",
+              onPress: async () => {
+                try {
+                  await updateBarcode(e.existing.id, {
+                    product_id: target.item_code,
+                  });
+                  updateBarcodeInStore(e.existing.id, {
+                    product_id: target.item_code,
+                  });
+                  showToast("✓ Strikamerki flutt");
+                } catch (err) {
+                  Alert.alert(
+                    "Villa",
+                    err instanceof Error ? err.message : "Failed to reassign",
+                  );
+                }
+              },
+            },
+          ],
+        );
       } else {
         Alert.alert(
           "Villa",
