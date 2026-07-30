@@ -4,13 +4,20 @@ import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 
 const NAV_ITEMS: {
   label: string;
-  path: "/" | "/products" | "/scanned" | "/sort" | "/sendingar";
+  path:
+    | "/"
+    | "/products"
+    | "/scanned"
+    | "/sort"
+    | "/sendingar"
+    | "/multi-pick/setup";
 }[] = [
   { label: "Pantanir", path: "/" },
   { label: "Skrá", path: "/products" },
   { label: "Breyta", path: "/scanned" },
   { label: "Röðun", path: "/sort" },
   { label: "Sendingar", path: "/sendingar" },
+  { label: "Fjöltínsla", path: "/multi-pick/setup" },
 ];
 
 interface Props {

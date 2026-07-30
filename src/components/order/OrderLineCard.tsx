@@ -9,6 +9,7 @@ interface Props {
   missing: number;
   isBarcodeMapped: boolean;
   product: Product | undefined;
+  basketNumber?: number;
   onPressStatus: () => void;
   onPressCard: () => void;
 }
@@ -19,6 +20,7 @@ export default function OrderLineCard({
   missing,
   isBarcodeMapped,
   product,
+  basketNumber,
   onPressStatus,
   onPressCard,
 }: Props) {
@@ -78,6 +80,11 @@ export default function OrderLineCard({
       </View>
 
       <View style={styles.lineRight}>
+        {basketNumber != null && (
+          <View style={styles.basketBadge}>
+            <Text style={styles.basketBadgeText}>K{basketNumber}</Text>
+          </View>
+        )}
         <Text
           style={[
             styles.progress,
@@ -227,5 +234,17 @@ const styles = StyleSheet.create({
   },
   checkmark: {
     fontSize: 10,
+  },
+  basketBadge: {
+    backgroundColor: "#EBF5FF",
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    alignSelf: "flex-end",
+  },
+  basketBadgeText: {
+    color: "#208AEF",
+    fontSize: 18,
+    fontWeight: "700",
   },
 });

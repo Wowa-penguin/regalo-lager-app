@@ -31,7 +31,6 @@ export const CATEGORY_ORDER: string[] = [
 // Human-readable names for category codes — edit this whenever you want a
 // category to display as something other than its raw code.
 export const CATEGORY_NAMES: Record<string, string> = {
-  // "32": "Þurrmat",
   "32": "Matrix Litir",
   "43": "RK litir",
   "42": "Rk",
