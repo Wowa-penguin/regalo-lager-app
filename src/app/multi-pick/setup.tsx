@@ -32,9 +32,8 @@ export default function MultiPickSetup() {
   const [starting, setStarting] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
 
-  if (!user.username) return <Redirect href="/login" />;
-
   useEffect(() => {
+    if (!user.username) return;
     fetchOrders()
       .then((data) => setOrders(data.filter((o) => !o.finished)))
       .catch((e: unknown) =>
@@ -43,7 +42,9 @@ export default function MultiPickSetup() {
         ),
       )
       .finally(() => setLoading(false));
-  }, []);
+  }, [user.username]);
+
+  if (!user.username) return <Redirect href="/login" />;
 
   const availableStatuses = [
     ...new Set(orders.map((o) => o.hstatus).filter(Boolean)),
