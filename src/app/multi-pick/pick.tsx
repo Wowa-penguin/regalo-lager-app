@@ -2,6 +2,7 @@ import { createBarcode } from "@/api/createBarcode";
 import { fetchOrdersByIds } from "@/api/fetchOrdersByIds";
 import { finishOrder } from "@/api/finishOrder";
 import { deleteInvoiceNotes } from "@/api/fetchInvoiceNotes";
+import { BarcodeConflictError, updateBarcode } from "@/api/updateBarcode";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import AssignBarcodeModal from "@/components/order/AssignBarcodeModal";
 import ManualEntryModal from "@/components/order/ManualEntryModal";
@@ -54,6 +55,7 @@ export default function MultiPickScreen() {
   const categoryOrder = useCustomSortStore((s) => s.categoryOrder);
   const findProductId = useBarcodeStore((s) => s.findProductId);
   const addBarcode = useBarcodeStore((s) => s.addBarcode);
+  const updateBarcodeInStore = useBarcodeStore((s) => s.updateBarcode);
   const barcodes = useBarcodeStore((s) => s.barcodes);
 
   const [rawLines, setRawLines] = useState<MultiPickLine[]>([]);
@@ -63,6 +65,8 @@ export default function MultiPickScreen() {
   const [finishError, setFinishError] = useState("");
   const [finishProgress, setFinishProgress] = useState("");
   const [iosScanOpen, setIosScanOpen] = useState(false);
+  const [changeBarcodeTarget, setChangeBarcodeTarget] =
+    useState<MultiPickLine | null>(null);
   const processingRef = useRef(false);
 
   const [pendingBarcode, setPendingBarcode] = useState<string | null>(null);
@@ -301,9 +305,96 @@ export default function MultiPickScreen() {
     }, 300);
   };
 
+  const handleChangeBarcodeScanned = async (data: string) => {
+    const target = changeBarcodeTarget;
+    setChangeBarcodeTarget(null);
+    if (!target) {
+      processingRef.current = false;
+      return;
+    }
+    try {
+      const existing = barcodes.find((b) => b.product_id === target.item_code);
+      if (existing) {
+        const updated = await updateBarcode(existing.id, { barcode: data });
+        updateBarcodeInStore(existing.id, { barcode: updated.barcode });
+      } else {
+        const mapping = await createBarcode(data, target.item_code);
+        addBarcode(mapping);
+      }
+      showToast("✓ Strikamerki uppfært");
+    } catch (e: unknown) {
+      if (e instanceof BarcodeConflictError) {
+        const conflictProduct = productMap.get(e.existing.product_id);
+        const conflictName = conflictProduct?.name ?? e.existing.product_id;
+        const targetName = target.description || target.item_code;
+        Alert.alert(
+          "Strikamerki í notkun",
+          `Þetta strikamerki tilheyrir „${conflictName}". Viltu færa það yfir á „${targetName}"?`,
+          [
+            { text: "Hætta við", style: "cancel" },
+            {
+              text: "Já, færa yfir",
+              onPress: async () => {
+                try {
+                  await updateBarcode(e.existing.id, {
+                    product_id: target.item_code,
+                  });
+                  updateBarcodeInStore(e.existing.id, {
+                    product_id: target.item_code,
+                  });
+                  showToast("✓ Strikamerki flutt");
+                } catch (err) {
+                  Alert.alert(
+                    "Villa",
+                    err instanceof Error ? err.message : "Failed to reassign",
+                  );
+                }
+              },
+            },
+          ],
+        );
+      } else {
+        Alert.alert(
+          "Villa",
+          e instanceof Error ? e.message : "Failed to update barcode",
+        );
+      }
+    } finally {
+      processingRef.current = false;
+    }
+  };
+
+  const promptChangeBarcode = (line: MultiPickLine) => {
+    Alert.alert(
+      "Breyta strikamerki",
+      `Viltu breyta strikamerki fyrir „${line.description || line.item_code}"?`,
+      [
+        { text: "Hætta", style: "cancel" },
+        {
+          text: "Já",
+          onPress: () => {
+            processingRef.current = false;
+            setChangeBarcodeTarget(line);
+            if (Platform.OS !== "android") setIosScanOpen(true);
+          },
+        },
+      ],
+    );
+  };
+
+  const cancelChangeBarcode = () => {
+    setChangeBarcodeTarget(null);
+    processingRef.current = false;
+  };
+
   const handleScanned = (data: string) => {
     if (processingRef.current) return;
     processingRef.current = true;
+
+    if (changeBarcodeTarget) {
+      handleChangeBarcodeScanned(data);
+      return;
+    }
 
     const knownProductId = findProductId(data);
     const resolvedId = knownProductId ?? data;
@@ -471,7 +562,7 @@ export default function MultiPickScreen() {
                       0,
                   })
                 }
-                onPressCard={() => {}}
+                onPressCard={() => promptChangeBarcode(item)}
               />
             )}
             contentContainerStyle={[
@@ -565,10 +656,25 @@ export default function MultiPickScreen() {
         }}
       />
 
+      {changeBarcodeTarget && (
+        <View style={styles.changeBarcodeBanner}>
+          <Text style={styles.changeBarcodeText} numberOfLines={1}>
+            ⊙ Skanna nýtt strikamerki:{" "}
+            {changeBarcodeTarget.description || changeBarcodeTarget.item_code}
+          </Text>
+          <Pressable onPress={cancelChangeBarcode}>
+            <Text style={styles.changeBarcodeCancelText}>Hætta við</Text>
+          </Pressable>
+        </View>
+      )}
+
       {Platform.OS !== "android" && (
         <BarcodeScanner
           visible={iosScanOpen}
-          onClose={() => setIosScanOpen(false)}
+          onClose={() => {
+            setIosScanOpen(false);
+            if (changeBarcodeTarget) cancelChangeBarcode();
+          }}
           onScanned={(data) => {
             setIosScanOpen(false);
             handleScanned(data);
@@ -696,4 +802,34 @@ const styles = StyleSheet.create({
   },
   fabIcon: { fontSize: 20, color: "#fff" },
   fabLabel: { color: "#fff", fontSize: 17, fontWeight: "700" },
+  changeBarcodeBanner: {
+    position: "absolute",
+    bottom: 54,
+    left: 16,
+    right: 16,
+    borderRadius: 12,
+    backgroundColor: "#208AEF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  changeBarcodeText: {
+    flex: 1,
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  changeBarcodeCancelText: {
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 14,
+    fontWeight: "600",
+  },
 });
