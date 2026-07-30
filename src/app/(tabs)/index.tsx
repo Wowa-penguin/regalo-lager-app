@@ -40,6 +40,9 @@ export default function Index() {
   const [maxPrice, setMaxPrice] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [finishedFilter, setFinishedFilter] = useState<
+    "all" | "unfinished" | "finished"
+  >("all");
   const [messageExpanded, setMessageExpanded] = useState(false);
 
   const MESSAGE_TRUNCATE_LENGTH = 75;
@@ -88,6 +91,7 @@ export default function Index() {
     minPrice,
     maxPrice,
     selectedStatus,
+    finishedFilter !== "all" ? finishedFilter : "",
   ].filter(Boolean).length;
 
   const statuses = useMemo(
@@ -119,9 +123,19 @@ export default function Index() {
       if (min !== null && !isNaN(min) && (o.total ?? 0) < min) return false;
       if (max !== null && !isNaN(max) && (o.total ?? 0) > max) return false;
       if (selectedStatus && o.hstatus !== selectedStatus) return false;
+      if (finishedFilter === "finished" && !o.finished) return false;
+      if (finishedFilter === "unfinished" && o.finished) return false;
       return true;
     });
-  }, [orders, query, zipFilter, minPrice, maxPrice, selectedStatus]);
+  }, [
+    orders,
+    query,
+    zipFilter,
+    minPrice,
+    maxPrice,
+    selectedStatus,
+    finishedFilter,
+  ]);
 
   const pushToOrder = async (invoice_number: number) => {
     try {
@@ -209,7 +223,8 @@ export default function Index() {
           {item.finished && (
             <View style={styles.basketBadge}>
               <Text style={styles.basketBadgeText}>
-                Körfur: {getBasketsNumber(item.invoice_number)?.join(", ") ?? "—"}
+                Körfur:{" "}
+                {getBasketsNumber(item.invoice_number)?.join(", ") ?? "—"}
               </Text>
             </View>
           )}
@@ -333,6 +348,35 @@ export default function Index() {
             </View>
           )}
 
+          <View style={styles.filterField}>
+            <Text style={styles.filterLabel}>Staða pöntunar</Text>
+            <View style={styles.finishedTabRow}>
+              {(["all", "unfinished", "finished"] as const).map((val) => (
+                <Pressable
+                  key={val}
+                  style={[
+                    styles.finishedTab,
+                    finishedFilter === val && styles.finishedTabActive,
+                  ]}
+                  onPress={() => setFinishedFilter(val)}
+                >
+                  <Text
+                    style={[
+                      styles.finishedTabText,
+                      finishedFilter === val && styles.finishedTabTextActive,
+                    ]}
+                  >
+                    {val === "all"
+                      ? "Allt"
+                      : val === "unfinished"
+                        ? "Óklárað"
+                        : "Klárað"}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
           {activeFilterCount > 0 && (
             <Pressable
               onPress={() => {
@@ -340,6 +384,7 @@ export default function Index() {
                 setMinPrice("");
                 setMaxPrice("");
                 setSelectedStatus("");
+                setFinishedFilter("all");
               }}
             >
               <Text style={styles.clearFiltersText}>Clear filters</Text>
@@ -680,6 +725,33 @@ const styles = StyleSheet.create({
   },
   statusChipTextActive: {
     color: "#208AEF",
+  },
+  finishedTabRow: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  finishedTab: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E2DAD3",
+    alignItems: "center",
+    backgroundColor: "#F7F5F2",
+  },
+  finishedTabActive: {
+    backgroundColor: "#208AEF",
+    borderColor: "#208AEF",
+  },
+  finishedTabText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#888",
+  },
+  finishedTabTextActive: {
+    color: "#fff",
   },
   noteBanner: {
     backgroundColor: "#FFFBE6",
