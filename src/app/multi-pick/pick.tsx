@@ -8,6 +8,7 @@ import AssignBarcodeModal from "@/components/order/AssignBarcodeModal";
 import ManualEntryModal from "@/components/order/ManualEntryModal";
 import OrderLineCard from "@/components/order/OrderLineCard";
 import OverpackWarningModal from "@/components/order/OverpackWarningModal";
+import WrongOrderModal from "@/components/order/WrongOrderModal";
 import { CATEGORY_ORDER } from "@/constants/const";
 import { useProducts } from "@/hooks/useProducts";
 import { useZebraScanner } from "@/hooks/useZebraScanner";
@@ -83,6 +84,10 @@ export default function MultiPickScreen() {
     picked: number;
     quantity: number;
     unit: string;
+  } | null>(null);
+  const [wrongOrderProduct, setWrongOrderProduct] = useState<{
+    productId: string;
+    barcode: string;
   } | null>(null);
 
   const [toastMessage, setToastMessage] = useState("");
@@ -417,10 +422,7 @@ export default function MultiPickScreen() {
 
     if (knownProductId !== null) {
       playErrorSound();
-      Alert.alert(
-        "Vara ekki í pöntununum",
-        "Þessi vara er ekki í neinum völdum pöntunum.",
-      );
+      setWrongOrderProduct({ productId: knownProductId, barcode: data });
       processingRef.current = false;
     } else {
       setPendingBarcode(data);
@@ -652,6 +654,15 @@ export default function MultiPickScreen() {
         }
         onClose={() => {
           setOverpackWarning(null);
+          processingRef.current = false;
+        }}
+      />
+
+      <WrongOrderModal
+        wrongProduct={wrongOrderProduct}
+        products={products}
+        onClose={() => {
+          setWrongOrderProduct(null);
           processingRef.current = false;
         }}
       />

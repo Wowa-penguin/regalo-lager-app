@@ -1,4 +1,5 @@
 import { createInvoiceNotes } from "@/api/createInvoiceNotes";
+import { fetchInvoiceNotes } from "@/api/fetchInvoiceNotes";
 import { fetchOrders } from "@/api/fetchOrders";
 import NavMenu from "@/components/NavMenu";
 import { useLogout } from "@/hooks/useLogout";
@@ -8,6 +9,7 @@ import { Redirect, router } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -62,13 +64,31 @@ export default function MultiPickSetup() {
     return true;
   });
 
-  const toggleSelect = (invoiceNumber: number) => {
-    setSelected((prev) => {
-      if (prev.includes(invoiceNumber))
-        return prev.filter((n) => n !== invoiceNumber);
-      if (prev.length >= 4) return prev;
-      return [...prev, invoiceNumber];
-    });
+  const toggleSelect = async (invoiceNumber: number) => {
+    if (selected.includes(invoiceNumber)) {
+      setSelected((prev) => prev.filter((n) => n !== invoiceNumber));
+      return;
+    }
+    if (selected.length >= 4) return;
+
+    try {
+      const notes = await fetchInvoiceNotes();
+      const blockedBy = notes.find(
+        (n) => n.invoice_number === invoiceNumber && n.name !== user.username,
+      );
+      if (blockedBy) {
+        Alert.alert(
+          "Pöntun í notkun",
+          `Notandi „${blockedBy.name}" er að vinna í þessari pöntun núna.`,
+          [{ text: "Í lagi" }],
+        );
+        return;
+      }
+    } catch {
+      // network error — allow selection
+    }
+
+    setSelected((prev) => [...prev, invoiceNumber]);
   };
 
   const setBasket = (invoiceNumber: number, value: string) => {
