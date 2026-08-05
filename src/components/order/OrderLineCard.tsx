@@ -3,6 +3,16 @@ import { Product } from "@/types/product";
 import * as WebBrowser from "expo-web-browser";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+const BASKET_COLORS: Record<
+  number,
+  { border: string; badge: string; text: string }
+> = {
+  1: { border: "#208AEF", badge: "#EBF5FF", text: "#208AEF" },
+  2: { border: "#27AE60", badge: "#F0FFF4", text: "#27AE60" },
+  3: { border: "#F39C12", badge: "#FFF8EC", text: "#F39C12" },
+  4: { border: "#8E44AD", badge: "#F5EEFF", text: "#8E44AD" },
+};
+
 interface Props {
   line: OrderLine;
   picked: number;
@@ -29,6 +39,11 @@ export default function OrderLineCard({
   const isMissingAll = missing > 0 && picked === 0;
   const isMissingPartial = missing > 0 && picked > 0 && !isComplete;
 
+  const basketColor =
+    basketNumber != null
+      ? (BASKET_COLORS[basketNumber] ?? BASKET_COLORS[1])
+      : null;
+
   return (
     <Pressable
       onPress={onPressCard}
@@ -40,6 +55,11 @@ export default function OrderLineCard({
         isComplete && styles.lineCardComplete,
       ]}
     >
+      {basketColor != null && (
+        <View
+          style={[styles.basketStrip, { backgroundColor: basketColor.border }]}
+        />
+      )}
       <View style={styles.lineLeft}>
         <Pressable
           onPress={onPressStatus}
@@ -80,9 +100,13 @@ export default function OrderLineCard({
       </View>
 
       <View style={styles.lineRight}>
-        {basketNumber != null && (
-          <View style={styles.basketBadge}>
-            <Text style={styles.basketBadgeText}>K{basketNumber}</Text>
+        {basketNumber != null && basketColor != null && (
+          <View
+            style={[styles.basketBadge, { backgroundColor: basketColor.badge }]}
+          >
+            <Text style={[styles.basketBadgeText, { color: basketColor.text }]}>
+              K{basketNumber}
+            </Text>
           </View>
         )}
         <Text
@@ -127,6 +151,15 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     elevation: 1,
     minHeight: 72,
+  },
+  basketStrip: {
+    width: 5,
+    alignSelf: "stretch",
+    marginVertical: -14,
+    marginLeft: -14,
+    marginRight: 9,
+    borderTopLeftRadius: 11,
+    borderBottomLeftRadius: 11,
   },
   lineCardComplete: {
     backgroundColor: "#F0FFF4",
@@ -236,14 +269,12 @@ const styles = StyleSheet.create({
     fontSize: 10,
   },
   basketBadge: {
-    backgroundColor: "#EBF5FF",
     borderRadius: 6,
     paddingHorizontal: 7,
     paddingVertical: 4,
     alignSelf: "flex-end",
   },
   basketBadgeText: {
-    color: "#208AEF",
     fontSize: 18,
     fontWeight: "700",
   },

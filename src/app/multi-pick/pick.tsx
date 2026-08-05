@@ -25,12 +25,18 @@ import {
   Alert,
   Animated,
   FlatList,
+  LayoutAnimation,
   Platform,
   Pressable,
   StyleSheet,
   Text,
+  UIManager,
   View,
 } from "react-native";
+
+if (Platform.OS === "android") {
+  UIManager.setLayoutAnimationEnabledExperimental?.(true);
+}
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const audioSource = require("@/assets/audio/error.mp3");
@@ -91,7 +97,8 @@ export default function MultiPickScreen() {
   } | null>(null);
 
   const [toastMessage, setToastMessage] = useState("");
-  const toastAnim = useRef(new Animated.Value(-80)).current;
+  const [toastBasket, setToastBasket] = useState<number | null>(null);
+  const toastAnim = useRef(new Animated.Value(-160)).current;
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -257,10 +264,11 @@ export default function MultiPickScreen() {
   ).length;
   const allDone = lines.length > 0 && completedLines === lines.length;
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, basketNumber?: number) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToastMessage(message);
-    toastAnim.setValue(-80);
+    setToastBasket(basketNumber ?? null);
+    toastAnim.setValue(-160);
     Animated.spring(toastAnim, {
       toValue: 0,
       useNativeDriver: true,
@@ -269,7 +277,7 @@ export default function MultiPickScreen() {
     }).start();
     toastTimer.current = setTimeout(() => {
       Animated.timing(toastAnim, {
-        toValue: -80,
+        toValue: -160,
         duration: 200,
         useNativeDriver: true,
       }).start();
@@ -300,11 +308,12 @@ export default function MultiPickScreen() {
       return;
     }
     const next = current + 1;
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setItemPicked(inv, itemCode, next);
     if ((allMissingCounts[inv]?.[itemCode] ?? 0) > 0) {
       setItemMissing(inv, itemCode, Math.max(0, total - next));
     }
-    showToast(`✓ ${line.description || itemCode}`);
+    showToast(line.description || itemCode, line.basketNumber);
     setTimeout(() => {
       processingRef.current = false;
     }, 300);
@@ -585,8 +594,11 @@ export default function MultiPickScreen() {
         style={[styles.scanToast, { transform: [{ translateY: toastAnim }] }]}
         pointerEvents="none"
       >
+        {toastBasket != null && (
+          <Text style={styles.scanToastBasket}>K{toastBasket}</Text>
+        )}
         <Text style={styles.scanToastText} numberOfLines={1}>
-          {toastMessage}
+          ✓ {toastMessage}
         </Text>
       </Animated.View>
 
@@ -616,6 +628,7 @@ export default function MultiPickScreen() {
             const newAggregate = Math.max(0, current - initialCount + count);
             const total =
               itemTotalsPerOrder.get(inv)?.get(itemCode) ?? line.quantity;
+            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
             setItemPicked(inv, itemCode, newAggregate);
             if ((allMissingCounts[inv]?.[itemCode] ?? 0) > 0) {
               setItemMissing(inv, itemCode, Math.max(0, total - newAggregate));
@@ -633,6 +646,7 @@ export default function MultiPickScreen() {
             const total =
               itemTotalsPerOrder.get(inv)?.get(itemCode) ?? line.quantity;
             const missing = total - newAggregate;
+            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
             setItemPicked(inv, itemCode, newAggregate);
             setItemMissing(inv, itemCode, missing > 0 ? missing : 0);
           }
@@ -784,11 +798,20 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 8,
   },
-  scanToastText: {
+  scanToastBasket: {
     color: "#fff",
-    fontSize: 15,
+    fontSize: 32,
+    fontWeight: "800",
+    textAlign: "center",
+    letterSpacing: 1,
+    lineHeight: 36,
+  },
+  scanToastText: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 14,
     fontWeight: "600",
     textAlign: "center",
+    marginTop: 2,
   },
   fabContainer: {
     position: "absolute",
