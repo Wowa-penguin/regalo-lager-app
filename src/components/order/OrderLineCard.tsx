@@ -20,6 +20,7 @@ interface Props {
   isBarcodeMapped: boolean;
   product: Product | undefined;
   basketNumber?: number;
+  colorIndex?: number;
   onPressStatus: () => void;
   onPressCard: () => void;
 }
@@ -31,6 +32,7 @@ export default function OrderLineCard({
   isBarcodeMapped,
   product,
   basketNumber,
+  colorIndex,
   onPressStatus,
   onPressCard,
 }: Props) {
@@ -39,10 +41,9 @@ export default function OrderLineCard({
   const isMissingAll = missing > 0 && picked === 0;
   const isMissingPartial = missing > 0 && picked > 0 && !isComplete;
 
+  const colorKey = colorIndex ?? basketNumber;
   const basketColor =
-    basketNumber != null
-      ? (BASKET_COLORS[basketNumber] ?? BASKET_COLORS[1])
-      : null;
+    colorKey != null ? (BASKET_COLORS[colorKey] ?? BASKET_COLORS[1]) : null;
 
   return (
     <Pressable

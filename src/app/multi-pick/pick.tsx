@@ -565,6 +565,7 @@ export default function MultiPickScreen() {
                 isBarcodeMapped={mappedProductIds.has(item.item_code)}
                 product={productMap.get(item.item_code)}
                 basketNumber={item.basketNumber}
+                colorIndex={ids.indexOf(item.invoiceNumber) + 1}
                 onPressStatus={() =>
                   setManualEntryTarget({
                     line: item,
