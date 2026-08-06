@@ -1,10 +1,12 @@
 import { fetchInvoice } from "@/api/fetchInvoice";
 import { fetchLorealInvoice } from "@/api/fetchLorealInvoice";
 import { patchLorealInvoice } from "@/api/patchLorealInvoice";
+import BarcodeScanner from "@/components/BarcodeScanner";
 import NavMenu from "@/components/NavMenu";
 import CollectQuantityModal from "@/components/sendingar/CollectQuantityModal";
 import LorealCollectModal from "@/components/sendingar/LorealCollectModal";
 import { useLogout } from "@/hooks/useLogout";
+import { useZebraScanner } from "@/hooks/useZebraScanner";
 import useStore from "@/store/useStore";
 import { LorealInvoice, Lyko } from "@/types/invoices";
 import { Redirect } from "expo-router";
@@ -14,6 +16,7 @@ import {
   Alert,
   Animated,
   FlatList,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -63,6 +66,9 @@ export default function SendingarTab() {
   const savedAnim = useRef(new Animated.Value(0)).current;
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // iOS camera scan
+  const [iosScanOpen, setIosScanOpen] = useState(false);
+
   // ── Effects ──────────────────────────────────────────────────
   useEffect(() => {
     if (user.username) loadLyko();
@@ -73,6 +79,33 @@ export default function SendingarTab() {
       loadLoreal();
     }
   }, [activeTab, lorealLoaded, user.username]);
+
+  // Loreal scan handler — defined before guard so the hook call is unconditional
+  const handleLorealScanned = (data: string) => {
+    const trimmed = data.trim();
+    const found = lorealInvoices.find(
+      (i) =>
+        i.article_no === trimmed ||
+        i.article_no.toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (found) {
+      setLorealCollectTarget({
+        item: found,
+        initialCount: lorealCounts[found.id] ?? found.collected_qty,
+      });
+    } else {
+      Alert.alert(
+        "Vara ekki fundin",
+        `Engin vara fannst með vörunúmer „${trimmed}".`,
+        [{ text: "Í lagi" }],
+      );
+    }
+  };
+
+  useZebraScanner(
+    activeTab === "loreal" && lorealLoaded && !lorealLoading,
+    handleLorealScanned,
+  );
 
   // Guard — must come after all hooks
   if (!user.username) return <Redirect href="/login" />;
@@ -362,7 +395,7 @@ export default function SendingarTab() {
 
       {/* ── LOREAL TAB ── */}
       {activeTab === "loreal" && (
-        <>
+        <View style={{ flex: 1 }}>
           <View style={styles.searchRow}>
             <TextInput
               style={styles.searchInput}
@@ -393,7 +426,8 @@ export default function SendingarTab() {
             <FlatList
               data={filteredLoreal}
               keyExtractor={(item) => String(item.id)}
-              contentContainerStyle={[tabStyles.list, { paddingBottom: 90 }]}
+              style={{ flex: 1 }}
+              contentContainerStyle={tabStyles.list}
               refreshControl={
                 <RefreshControl
                   refreshing={lorealRefreshing}
@@ -495,6 +529,16 @@ export default function SendingarTab() {
             <Text style={styles.savedToastText}>✓ Vistað</Text>
           </Animated.View>
 
+          {/* iOS scan FAB */}
+          {Platform.OS === "ios" && (
+            <Pressable
+              style={styles.scanFab}
+              onPress={() => setIosScanOpen(true)}
+            >
+              <Text style={styles.scanFabIcon}>⌗</Text>
+            </Pressable>
+          )}
+
           <LorealCollectModal
             entry={lorealCollectTarget}
             onClose={() => setLorealCollectTarget(null)}
@@ -507,7 +551,19 @@ export default function SendingarTab() {
               setLorealCollectTarget(null);
             }}
           />
-        </>
+        </View>
+      )}
+
+      {/* iOS barcode scanner — outside tab guard so modal can dismiss cleanly */}
+      {Platform.OS === "ios" && (
+        <BarcodeScanner
+          visible={iosScanOpen}
+          onClose={() => setIosScanOpen(false)}
+          onScanned={(data) => {
+            setIosScanOpen(false);
+            handleLorealScanned(data);
+          }}
+        />
       )}
     </SafeAreaView>
   );
@@ -594,10 +650,6 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   saveFooter: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
     backgroundColor: "#fff",
     borderTopWidth: 1,
     borderTopColor: "#E2DAD3",
@@ -626,7 +678,7 @@ const styles = StyleSheet.create({
   },
   savedToast: {
     position: "absolute",
-    bottom: 80,
+    bottom: 90,
     alignSelf: "center",
     backgroundColor: "#27AE60",
     borderRadius: 20,
@@ -641,6 +693,27 @@ const styles = StyleSheet.create({
   savedToastText: {
     color: "#fff",
     fontSize: 15,
+    fontWeight: "700",
+  },
+  scanFab: {
+    position: "absolute",
+    bottom: 90,
+    right: 20,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "#208AEF",
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+  },
+  scanFabIcon: {
+    color: "#fff",
+    fontSize: 24,
     fontWeight: "700",
   },
 });
