@@ -1,8 +1,12 @@
 import { createBarcode } from "@/api/createBarcode";
+import { createParty } from "@/api/createParty";
+import { deleteParty } from "@/api/deleteParty";
 import { fetchFinishedOrder } from "@/api/fetchFinishedOrder";
 import { deleteInvoiceNotes } from "@/api/fetchInvoiceNotes";
 import { fetchOrder } from "@/api/fetchOrder";
+import { fetchParty } from "@/api/fetchParty";
 import { finishOrder } from "@/api/finishOrder";
+import { finishParty } from "@/api/finishParty";
 import { unfinishOrder } from "@/api/unfinishOrder";
 import { BarcodeConflictError, updateBarcode } from "@/api/updateBarcode";
 import BarcodeScanner from "@/components/BarcodeScanner";
@@ -40,7 +44,12 @@ const EMPTY_MISSING: Record<string, number> = {};
 const audioSource = require("@/assets/audio/error.mp3");
 
 export default function OrderDetail() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, party_id, party_role, party_lines } = useLocalSearchParams<{
+    id: string;
+    party_id?: string;
+    party_role?: string;
+    party_lines?: string;
+  }>();
   const invoiceNumber = Number(id);
   const user = useStore((s) => s.user);
 
@@ -48,6 +57,21 @@ export default function OrderDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const processingRef = useRef(false);
+
+  // Party state
+  const [partyId, setPartyId] = useState<number | null>(
+    party_id ? Number(party_id) : null,
+  );
+  const [partyRole, setPartyRole] = useState<"owner" | "joiner" | null>(
+    (party_role as "owner" | "joiner") ?? null,
+  );
+  const [partyLines, setPartyLines] = useState<number[] | null>(
+    party_lines ? (JSON.parse(party_lines) as number[]) : null,
+  );
+  const [partyJoiner, setPartyJoiner] = useState<string | null>(null);
+  const [creatingParty, setCreatingParty] = useState(false);
+  const [partyFinishing, setPartyFinishing] = useState(false);
+  const inParty = partyId !== null;
 
   const { products } = useProducts();
   const player = useAudioPlayer(audioSource);
@@ -141,6 +165,36 @@ export default function OrderDetail() {
     };
   }, []);
 
+  // Poll for joiner when owner is waiting
+  useEffect(() => {
+    if (!partyId || partyRole !== "owner" || partyLines !== null) return;
+    const interval = setInterval(async () => {
+      try {
+        const party = await fetchParty(partyId);
+        if (party.status === "active" && party.owner_lines) {
+          setPartyLines(party.owner_lines);
+          setPartyJoiner(party.joiner);
+        }
+      } catch { /* non-fatal */ }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [partyId, partyRole, partyLines]);
+
+  const handleCreateParty = async () => {
+    if (creatingParty || inParty) return;
+    setCreatingParty(true);
+    try {
+      const party = await createParty(invoiceNumber, user.username);
+      setPartyId(party.party_id);
+      setPartyRole("owner");
+      setPartyLines(null);
+    } catch (e: unknown) {
+      Alert.alert("Villa", e instanceof Error ? e.message : "Gat ekki stofnað hóp");
+    } finally {
+      setCreatingParty(false);
+    }
+  };
+
   const playErrorSound = () => {
     player.volume = 1.0;
     player.seekTo(0);
@@ -221,6 +275,14 @@ export default function OrderDetail() {
     return result;
   }, [order?.lines, missingCounts, attributedPicks]);
 
+  const scanableLines = useMemo(
+    () =>
+      partyLines !== null
+        ? (order?.lines ?? []).filter((l) => partyLines.includes(l.id))
+        : (order?.lines ?? []),
+    [order?.lines, partyLines],
+  );
+
   const lines = useMemo(() => {
     const priority = (line: OrderLine) => {
       const picked = attributedPicks.get(line) ?? 0;
@@ -230,7 +292,7 @@ export default function OrderDetail() {
       if (missing > 0 && picked > 0) return 2;
       return 0;
     };
-    return [...(order?.lines ?? [])].sort((a, b) => {
+    return [...scanableLines].sort((a, b) => {
       const pa = priority(a);
       const pb = priority(b);
       if (pa !== pb) return pa - pb;
@@ -266,7 +328,7 @@ export default function OrderDetail() {
       return nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
     });
   }, [
-    order?.lines,
+    scanableLines,
     productMap,
     attributedPicks,
     attributedMissing,
@@ -390,7 +452,7 @@ export default function OrderDetail() {
 
     const knownProductId = findProductId(data);
     const resolvedId = knownProductId ?? data;
-    const line = order.lines.find((l) => l.item_code === resolvedId);
+    const line = scanableLines.find((l) => l.item_code === resolvedId);
 
     if (!line) {
       if (knownProductId !== null) {
@@ -438,6 +500,23 @@ export default function OrderDetail() {
       return;
     }
 
+    // Party mode with split lines: use finishParty
+    if (inParty && partyLines !== null) {
+      if (baskets.length === 0) {
+        Alert.alert(
+          "Körfur vantar",
+          "Viltu klára hlutann þinn án körfunúmers?",
+          [
+            { text: "Hætta við", style: "cancel" },
+            { text: "Klára án körfu", onPress: doPartyFinish },
+          ],
+        );
+        return;
+      }
+      doPartyFinish();
+      return;
+    }
+
     if (baskets.length === 0) {
       Alert.alert(
         "Körfur vantar",
@@ -451,6 +530,32 @@ export default function OrderDetail() {
     }
 
     doFinish();
+  };
+
+  const doPartyFinish = async () => {
+    if (!partyId) return;
+    setPartyFinishing(true);
+    setFinishError("");
+    try {
+      const assignedLines = (order?.lines ?? []).filter(
+        (l) => partyLines === null || partyLines.includes(l.id),
+      );
+      const finishLines = assignedLines.map((l) => ({
+        line_id: l.id,
+        collected_qty: attributedPicks.get(l) ?? 0,
+      }));
+      await finishParty(partyId, {
+        name: user.username,
+        basket: baskets[0] ?? 0,
+        lines: finishLines,
+      });
+      // Leave immediately — server holds the submitted lines until partner finishes
+      await deleteInvoiceNotes(invoiceNumber).catch(() => {});
+      router.back();
+    } catch (e: unknown) {
+      setFinishError(e instanceof Error ? e.message : "Villa við að klára");
+      setPartyFinishing(false);
+    }
   };
 
   const doFinish = async () => {
@@ -477,6 +582,29 @@ export default function OrderDetail() {
   };
 
   const handleBackArrow = async () => {
+    if (partyId && partyRole === "owner") {
+      if (partyLines !== null) {
+        // Joiner has already joined — warn before abandoning
+        Alert.alert(
+          "Hætta við hóp?",
+          "Félagi þinn er enn að tína. Viltu fara til baka og hætta við hópinn?",
+          [
+            { text: "Hætta við", style: "cancel" },
+            {
+              text: "Já, fara",
+              onPress: async () => {
+                await deleteParty(partyId).catch(() => {});
+                await deleteInvoiceNotes(invoiceNumber).catch(() => {});
+                router.back();
+              },
+            },
+          ],
+        );
+        return;
+      }
+      // Still waiting — cancel party silently
+      await deleteParty(partyId).catch(() => {});
+    }
     const res = await deleteInvoiceNotes(invoiceNumber);
     if (res.status === "deleted") {
       router.back();
@@ -531,22 +659,39 @@ export default function OrderDetail() {
         <Text style={styles.headerTitle} numberOfLines={1}>
           {order?.customer_name ?? `Pöntun #${id}`}
         </Text>
-        <Pressable
-          style={[
-            styles.finishButton,
-            order?.finished && styles.finishButtonDone,
-            finishing && styles.finishButtonDisabled,
-          ]}
-          onPress={handleFinish}
-        >
-          {finishing ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <Text style={styles.finishButtonText}>
-              {order?.finished ? "Áfram" : "Klára"}
-            </Text>
+        <View style={styles.headerRight}>
+          {!inParty && !order?.finished && (
+            <Pressable
+              style={[styles.partyButton, creatingParty && styles.partyButtonDisabled]}
+              onPress={handleCreateParty}
+              disabled={creatingParty}
+            >
+              <Text style={styles.partyButtonText}>
+                {creatingParty ? "…" : "👥"}
+              </Text>
+            </Pressable>
           )}
-        </Pressable>
+          <Pressable
+            style={[
+              styles.finishButton,
+              order?.finished && styles.finishButtonDone,
+              (finishing || partyFinishing) && styles.finishButtonDisabled,
+            ]}
+            onPress={handleFinish}
+          >
+            {finishing || partyFinishing ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.finishButtonText}>
+                {order?.finished
+                  ? "Áfram"
+                  : inParty && partyLines !== null
+                    ? "Klára hluta"
+                    : "Klára"}
+              </Text>
+            )}
+          </Pressable>
+        </View>
       </View>
 
       {loading ? (
@@ -576,6 +721,18 @@ export default function OrderDetail() {
               <Text style={styles.scannerBadge}>⊙ Skanni virkur</Text>
             )}
           </View>
+
+          {inParty && (
+            <View style={[styles.partyBanner, partyLines === null && styles.partyBannerWaiting]}>
+              <Text style={styles.partyBannerText}>
+                {partyLines === null
+                  ? "⏳ Bíð eftir félaga…"
+                  : partyRole === "joiner"
+                    ? "👥 Hópur virkur · þú ert félagi"
+                    : `👥 Hópur virkur · ${partyJoiner ?? "félagi"} tínir`}
+              </Text>
+            </View>
+          )}
 
           {!!order.description_text_2 && (
             <View style={styles.noteBanner}>
@@ -797,6 +954,44 @@ const styles = StyleSheet.create({
     color: "#208AEF",
     fontWeight: "600",
     paddingVertical: 4,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  partyButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#6EE7B7",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  partyButtonDisabled: {
+    opacity: 0.5,
+  },
+  partyButtonText: {
+    fontSize: 18,
+  },
+  partyBanner: {
+    backgroundColor: "#ECFDF5",
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#6EE7B7",
+  },
+  partyBannerWaiting: {
+    backgroundColor: "#FFFBE6",
+    borderBottomColor: "#FFE58F",
+  },
+  partyBannerText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#059669",
+    textAlign: "center",
   },
   headerTitle: {
     flex: 1,

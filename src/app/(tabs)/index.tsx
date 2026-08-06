@@ -3,6 +3,9 @@ import { fetchAllFinishedOrders } from "@/api/fetchFinishedOrder";
 import { fetchInvoiceNotes } from "@/api/fetchInvoiceNotes";
 import { fetchMessage } from "@/api/fetchMessage";
 import { fetchOrders } from "@/api/fetchOrders";
+import { fetchParties } from "@/api/fetchParties";
+import { joinParty } from "@/api/joinParty";
+import { Party } from "@/types/party";
 import NavMenu from "@/components/NavMenu";
 import { useLogout } from "@/hooks/useLogout";
 import useStore from "@/store/useStore";
@@ -29,6 +32,7 @@ export default function Index() {
   const handleLogout = useLogout();
 
   const [orders, setOrders] = useState<Order[]>([]);
+  const [parties, setParties] = useState<Party[]>([]);
   const [message, setMessage] = useState<Message>();
   const [finishedOrders, setFinishedOrders] = useState<FinishedOrder[]>();
   const [loading, setLoading] = useState(true);
@@ -56,12 +60,16 @@ export default function Index() {
     if (!silent) setLoading(true);
     setError("");
     try {
-      const data = await fetchOrders();
-      const message = await fetchMessage();
-      const finishedOrders = await fetchAllFinishedOrders();
+      const [data, message, finishedOrders, partiesData] = await Promise.all([
+        fetchOrders(),
+        fetchMessage(),
+        fetchAllFinishedOrders(),
+        fetchParties().catch(() => [] as Party[]),
+      ]);
       setOrders(data);
       setMessage(message);
       setFinishedOrders(finishedOrders);
+      setParties(partiesData);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load orders");
     } finally {
@@ -77,10 +85,11 @@ export default function Index() {
   useFocusEffect(
     useCallback(() => {
       if (!user.username) return;
-      Promise.all([fetchOrders(), fetchAllFinishedOrders()])
-        .then(([ordersData, finishedData]) => {
+      Promise.all([fetchOrders(), fetchAllFinishedOrders(), fetchParties().catch(() => [] as Party[])])
+        .then(([ordersData, finishedData, partiesData]) => {
           setOrders(ordersData);
           setFinishedOrders(finishedData);
+          setParties(partiesData);
         })
         .catch(() => {});
     }, [user.username]),
@@ -137,6 +146,53 @@ export default function Index() {
     finishedFilter,
   ]);
 
+  const openPartyMap = useMemo(
+    () => new Map(parties.filter((p) => p.status === "open").map((p) => [p.invoice_number, p])),
+    [parties],
+  );
+
+  const handleOrderPress = async (invoice_number: number) => {
+    const openParty = openPartyMap.get(invoice_number);
+    if (openParty && openParty.owner !== user.username) {
+      Alert.alert(
+        "Hópur opinn",
+        `Notandi „${openParty.owner}" er að tína þessa pöntun. Viltu taka þátt?`,
+        [
+          { text: "Hætta við", style: "cancel" },
+          {
+            text: "Taka þátt",
+            onPress: async () => {
+              try {
+                const result = await joinParty(openParty.party_id, user.username);
+                await createInvoiceNotes(invoice_number, user.username).catch(() => {});
+                router.push({
+                  pathname: "/order/[id]",
+                  params: {
+                    id: invoice_number,
+                    party_id: result.party_id,
+                    party_role: "joiner",
+                    party_lines: JSON.stringify(result.your_lines),
+                  },
+                });
+              } catch (e: unknown) {
+                Alert.alert(
+                  "Villa",
+                  e instanceof Error ? e.message : "Gat ekki tekið þátt",
+                );
+              }
+            },
+          },
+          {
+            text: "Opna",
+            onPress: () => pushToOrder(invoice_number),
+          },
+        ],
+      );
+      return;
+    }
+    pushToOrder(invoice_number);
+  };
+
   const pushToOrder = async (invoice_number: number) => {
     try {
       const invoiceArr = await fetchInvoiceNotes();
@@ -187,7 +243,7 @@ export default function Index() {
     <Pressable
       android_ripple={{ color: "#E2DAD3" }}
       style={[styles.card, item.finished && styles.cardFinished]}
-      onPress={() => pushToOrder(item.invoice_number)}
+      onPress={() => handleOrderPress(item.invoice_number)}
     >
       <View style={styles.cardTop}>
         <Text style={styles.customerName} numberOfLines={2}>
@@ -231,6 +287,13 @@ export default function Index() {
           {item.finished && (
             <View style={styles.finishedBadge}>
               <Text style={styles.finishedBadgeText}>Klárað</Text>
+            </View>
+          )}
+          {openPartyMap.has(item.invoice_number) && (
+            <View style={styles.partyBadge}>
+              <Text style={styles.partyBadgeText}>
+                👥 {openPartyMap.get(item.invoice_number)!.owner}
+              </Text>
             </View>
           )}
         </View>
@@ -725,6 +788,19 @@ const styles = StyleSheet.create({
   },
   statusChipTextActive: {
     color: "#208AEF",
+  },
+  partyBadge: {
+    backgroundColor: "#ECFDF5",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: "#6EE7B7",
+  },
+  partyBadgeText: {
+    fontSize: 12,
+    color: "#059669",
+    fontWeight: "600",
   },
   finishedTabRow: {
     flexDirection: "row",
