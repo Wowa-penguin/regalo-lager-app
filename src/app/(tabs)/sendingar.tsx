@@ -36,7 +36,9 @@ export default function SendingarTab() {
   const [lykoRefreshing, setLykoRefreshing] = useState(false);
   const [lykoError, setLykoError] = useState("");
   const [lykoSearch, setLykoSearch] = useState("");
-  const [lykoCollectedCounts, setLykoCollectedCounts] = useState<Record<number, number>>({});
+  const [lykoCollectedCounts, setLykoCollectedCounts] = useState<
+    Record<number, number>
+  >({});
   const [lykoCollectTarget, setLykoCollectTarget] = useState<{
     item: Lyko;
     initialCount: number;
@@ -83,7 +85,9 @@ export default function SendingarTab() {
       const data = await fetchInvoice();
       setLykoInvoices(data);
     } catch (e: unknown) {
-      setLykoError(e instanceof Error ? e.message : "Villa við að sækja sendingu");
+      setLykoError(
+        e instanceof Error ? e.message : "Villa við að sækja sendingu",
+      );
     } finally {
       setLykoLoading(false);
       setLykoRefreshing(false);
@@ -118,7 +122,9 @@ export default function SendingarTab() {
       setLorealCounts(seed);
       setLorealLoaded(true);
     } catch (e: unknown) {
-      setLorealError(e instanceof Error ? e.message : "Villa við að sækja sendingu");
+      setLorealError(
+        e instanceof Error ? e.message : "Villa við að sækja sendingu",
+      );
     } finally {
       setLorealLoading(false);
       setLorealRefreshing(false);
@@ -144,9 +150,17 @@ export default function SendingarTab() {
   const showSavedToast = () => {
     if (savedTimer.current) clearTimeout(savedTimer.current);
     Animated.sequence([
-      Animated.timing(savedAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+      Animated.timing(savedAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
       Animated.delay(1400),
-      Animated.timing(savedAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
+      Animated.timing(savedAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
     ]).start();
   };
 
@@ -162,7 +176,7 @@ export default function SendingarTab() {
       await patchLorealInvoice(items);
       showSavedToast();
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Villa við að geyma";
+      const msg = e instanceof Error ? e.message : "Villa við að vista";
       setLorealSaveError(msg);
       Alert.alert("Villa", msg);
     } finally {
@@ -204,7 +218,12 @@ export default function SendingarTab() {
           style={[styles.tab, activeTab === "lyko" && styles.tabActive]}
           onPress={() => setActiveTab("lyko")}
         >
-          <Text style={[styles.tabText, activeTab === "lyko" && styles.tabTextActive]}>
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "lyko" && styles.tabTextActive,
+            ]}
+          >
             Lyko
           </Text>
         </Pressable>
@@ -212,7 +231,12 @@ export default function SendingarTab() {
           style={[styles.tab, activeTab === "loreal" && styles.tabActive]}
           onPress={() => setActiveTab("loreal")}
         >
-          <Text style={[styles.tabText, activeTab === "loreal" && styles.tabTextActive]}>
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "loreal" && styles.tabTextActive,
+            ]}
+          >
             L'Oréal
           </Text>
         </Pressable>
@@ -240,7 +264,10 @@ export default function SendingarTab() {
           ) : lykoError ? (
             <View style={tabStyles.centered}>
               <Text style={tabStyles.errorText}>{lykoError}</Text>
-              <Pressable style={tabStyles.retryButton} onPress={() => loadLyko()}>
+              <Pressable
+                style={tabStyles.retryButton}
+                onPress={() => loadLyko()}
+              >
                 <Text style={tabStyles.retryText}>Retry</Text>
               </Pressable>
             </View>
@@ -270,13 +297,17 @@ export default function SendingarTab() {
                     onPress={() =>
                       setLykoCollectTarget({
                         item,
-                        initialCount: lykoCollectedCounts[item.id] ?? item.quantity,
+                        initialCount:
+                          lykoCollectedCounts[item.id] ?? item.quantity,
                       })
                     }
                   >
                     <View style={tabStyles.cardInfo}>
                       <Text
-                        style={[tabStyles.productName, collected && styles.textCollected]}
+                        style={[
+                          tabStyles.productName,
+                          collected && styles.textCollected,
+                        ]}
                       >
                         {item.name}
                       </Text>
@@ -294,7 +325,9 @@ export default function SendingarTab() {
                       {collected ? (
                         <Text style={styles.collectBtnTextDone}>✓</Text>
                       ) : partial ? (
-                        <Text style={styles.collectBtnTextPartial}>{count}</Text>
+                        <Text style={styles.collectBtnTextPartial}>
+                          {count}
+                        </Text>
                       ) : (
                         <Text style={styles.collectBtnText}>+</Text>
                       )}
@@ -304,7 +337,9 @@ export default function SendingarTab() {
               }}
               ListEmptyComponent={
                 <View style={tabStyles.centered}>
-                  <Text style={tabStyles.emptyText}>Engar sendingar fundust.</Text>
+                  <Text style={tabStyles.emptyText}>
+                    Engar sendingar fundust.
+                  </Text>
                 </View>
               }
             />
@@ -347,7 +382,10 @@ export default function SendingarTab() {
           ) : lorealError ? (
             <View style={tabStyles.centered}>
               <Text style={tabStyles.errorText}>{lorealError}</Text>
-              <Pressable style={tabStyles.retryButton} onPress={() => loadLoreal()}>
+              <Pressable
+                style={tabStyles.retryButton}
+                onPress={() => loadLoreal()}
+              >
                 <Text style={tabStyles.retryText}>Retry</Text>
               </Pressable>
             </View>
@@ -377,19 +415,26 @@ export default function SendingarTab() {
                     onPress={() =>
                       setLorealCollectTarget({
                         item,
-                        initialCount: lorealCounts[item.id] ?? item.collected_qty,
+                        initialCount:
+                          lorealCounts[item.id] ?? item.collected_qty,
                       })
                     }
                   >
                     <View style={tabStyles.cardInfo}>
                       <Text
-                        style={[tabStyles.productName, collected && styles.textCollected]}
+                        style={[
+                          tabStyles.productName,
+                          collected && styles.textCollected,
+                        ]}
                         numberOfLines={2}
                       >
                         {item.description}
                       </Text>
                       <Text style={tabStyles.productMeta}>
-                        {[item.brand, item.article_no].filter(Boolean).join(" · ")} · magn: {item.qty}
+                        {[item.brand, item.article_no]
+                          .filter(Boolean)
+                          .join(" · ")}{" "}
+                        · magn: {item.qty}
                       </Text>
                     </View>
                     <View
@@ -402,7 +447,9 @@ export default function SendingarTab() {
                       {collected ? (
                         <Text style={styles.collectBtnTextDone}>✓</Text>
                       ) : partial ? (
-                        <Text style={styles.collectBtnTextPartial}>{count}</Text>
+                        <Text style={styles.collectBtnTextPartial}>
+                          {count}
+                        </Text>
                       ) : (
                         <Text style={styles.collectBtnText}>+</Text>
                       )}
@@ -412,7 +459,9 @@ export default function SendingarTab() {
               }}
               ListEmptyComponent={
                 <View style={tabStyles.centered}>
-                  <Text style={tabStyles.emptyText}>Engar sendingar fundust.</Text>
+                  <Text style={tabStyles.emptyText}>
+                    Engar sendingar fundust.
+                  </Text>
                 </View>
               }
             />
@@ -432,7 +481,7 @@ export default function SendingarTab() {
                 {lorealSaving ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
-                  <Text style={styles.saveBtnText}>Geyma</Text>
+                  <Text style={styles.saveBtnText}>Vista</Text>
                 )}
               </Pressable>
             </View>
