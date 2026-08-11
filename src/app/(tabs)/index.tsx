@@ -1,10 +1,7 @@
-import { createInvoiceNotes } from "@/api/createInvoiceNotes";
-import { fetchAllFinishedOrders } from "@/api/fetchFinishedOrder";
-import { fetchInvoiceNotes } from "@/api/fetchInvoiceNotes";
-import { fetchMessage } from "@/api/fetchMessage";
-import { fetchOrders } from "@/api/fetchOrders";
-import { fetchParties } from "@/api/fetchParties";
-import { joinParty } from "@/api/joinParty";
+import { createInvoiceNotes, fetchInvoiceNotes } from "@/api/invoiceNotes";
+import { fetchAllFinishedOrders, fetchOrders } from "@/api/orders";
+import { fetchParties, joinParty } from "@/api/parties";
+import { fetchMessage } from "@/api/messages";
 import { Party } from "@/types/party";
 import NavMenu from "@/components/NavMenu";
 import { useLogout } from "@/hooks/useLogout";

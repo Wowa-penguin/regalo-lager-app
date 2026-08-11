@@ -1,5 +1,5 @@
-import { createBarcode } from "@/api/createBarcode";
-import { saveSortConfig } from "@/api/saveSortConfig";
+import { createBarcode } from "@/api/barcodes";
+import { saveSortConfig } from "@/api/sortConfig";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import NavMenu from "@/components/NavMenu";
 import { CATEGORY_ORDER, getCategoryName } from "@/constants/const";

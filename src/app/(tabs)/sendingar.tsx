@@ -1,6 +1,4 @@
-import { fetchInvoice } from "@/api/fetchInvoice";
-import { fetchLorealInvoice } from "@/api/fetchLorealInvoice";
-import { patchLorealInvoice } from "@/api/patchLorealInvoice";
+import { fetchInvoice, fetchLorealInvoice, patchLorealInvoice } from "@/api/invoices";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import NavMenu from "@/components/NavMenu";
 import CollectQuantityModal from "@/components/sendingar/CollectQuantityModal";

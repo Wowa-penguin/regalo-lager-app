@@ -1,5 +1,5 @@
-import { fetchBarcodes } from "@/api/fetchBarcodes";
-import { fetchSortConfig } from "@/api/fetchSortConfig";
+import { fetchBarcodes } from "@/api/barcodes";
+import { fetchSortConfig } from "@/api/sortConfig";
 import useStore, { loadSession } from "@/store/useStore";
 import useBarcodeStore from "@/store/useBarcodeStore";
 import useCustomSortStore from "@/store/useCustomSortStore";

@@ -1,4 +1,4 @@
-import { updateBarcode } from "@/api/updateBarcode";
+import { updateBarcode } from "@/api/barcodes";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import NavMenu from "@/components/NavMenu";
 import { getCategoryName } from "@/constants/const";

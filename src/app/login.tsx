@@ -1,6 +1,5 @@
-import { fetchBarcodes } from "@/api/fetchBarcodes";
-import { fetchLogin } from "@/api/fetchLogin";
-import { fetchUsers } from "@/api/fetchUsers";
+import { fetchBarcodes } from "@/api/barcodes";
+import { fetchLogin, fetchUsers } from "@/api/auth";
 import useBarcodeStore from "@/store/useBarcodeStore";
 import useStore, { saveSession } from "@/store/useStore";
 import { setAuthToken } from "@/utils/auth";

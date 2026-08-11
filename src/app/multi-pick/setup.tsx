@@ -1,6 +1,5 @@
-import { createInvoiceNotes } from "@/api/createInvoiceNotes";
-import { fetchInvoiceNotes } from "@/api/fetchInvoiceNotes";
-import { fetchOrders } from "@/api/fetchOrders";
+import { createInvoiceNotes, fetchInvoiceNotes } from "@/api/invoiceNotes";
+import { fetchOrders } from "@/api/orders";
 import NavMenu from "@/components/NavMenu";
 import { useLogout } from "@/hooks/useLogout";
 import useStore from "@/store/useStore";

@@ -1,4 +1,4 @@
-import { fetchProducts } from "@/api/fetchProducts";
+import { fetchProducts } from "@/api/products";
 import { Product } from "@/types/product";
 import { useEffect, useState } from "react";
 

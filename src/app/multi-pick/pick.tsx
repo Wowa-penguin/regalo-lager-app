@@ -1,8 +1,6 @@
-import { createBarcode } from "@/api/createBarcode";
-import { fetchOrdersByIds } from "@/api/fetchOrdersByIds";
-import { finishOrder } from "@/api/finishOrder";
-import { deleteInvoiceNotes } from "@/api/fetchInvoiceNotes";
-import { BarcodeConflictError, updateBarcode } from "@/api/updateBarcode";
+import { BarcodeConflictError, createBarcode, updateBarcode } from "@/api/barcodes";
+import { deleteInvoiceNotes } from "@/api/invoiceNotes";
+import { fetchOrdersByIds, finishOrder } from "@/api/orders";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import AssignBarcodeModal from "@/components/order/AssignBarcodeModal";
 import ManualEntryModal from "@/components/order/ManualEntryModal";

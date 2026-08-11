@@ -1,4 +1,4 @@
-import { fetchLogout } from "@/api/fetchLogout";
+import { fetchLogout } from "@/api/auth";
 import useStore, { clearSession } from "@/store/useStore";
 import { setAuthToken } from "@/utils/auth";
 import { Alert } from "react-native";
