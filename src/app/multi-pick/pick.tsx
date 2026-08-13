@@ -39,6 +39,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 const audioSource = require("@/assets/audio/error.mp3");
 
+const BASKET_COLORS: Record<number, string> = {
+  1: "#1D6FE8",
+  2: "#16A34A",
+  3: "#D97706",
+  4: "#7C3AED",
+};
+
 export default function MultiPickScreen() {
   const { ids: idsParam, baskets: basketsParam } =
     useLocalSearchParams<{ ids: string; baskets: string }>();
@@ -96,6 +103,7 @@ export default function MultiPickScreen() {
 
   const [toastMessage, setToastMessage] = useState("");
   const [toastBasket, setToastBasket] = useState<number | null>(null);
+  const [toastColor, setToastColor] = useState("#1a1a1a");
   const toastAnim = useRef(new Animated.Value(-160)).current;
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -262,10 +270,11 @@ export default function MultiPickScreen() {
   ).length;
   const allDone = lines.length > 0 && completedLines === lines.length;
 
-  const showToast = (message: string, basketNumber?: number) => {
+  const showToast = (message: string, basketNumber?: number, colorIndex?: number) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToastMessage(message);
     setToastBasket(basketNumber ?? null);
+    setToastColor(colorIndex != null ? (BASKET_COLORS[colorIndex] ?? "#1a1a1a") : "#1a1a1a");
     toastAnim.setValue(-160);
     Animated.spring(toastAnim, {
       toValue: 0,
@@ -311,7 +320,7 @@ export default function MultiPickScreen() {
     if ((allMissingCounts[inv]?.[itemCode] ?? 0) > 0) {
       setItemMissing(inv, itemCode, Math.max(0, total - next));
     }
-    showToast(line.description || itemCode, line.basketNumber);
+    showToast(line.description || itemCode, line.basketNumber, ids.indexOf(line.invoiceNumber) + 1);
     setTimeout(() => {
       processingRef.current = false;
     }, 300);
@@ -469,6 +478,7 @@ export default function MultiPickScreen() {
         }));
         await finishOrder(inv, user.username, [basketMap[inv]], finishLines);
       }
+      await Promise.allSettled(ids.map((id) => deleteInvoiceNotes(id)));
       router.back();
     } catch (e: unknown) {
       setFinishError(e instanceof Error ? e.message : "Villa við að klára");
@@ -590,7 +600,7 @@ export default function MultiPickScreen() {
       )}
 
       <Animated.View
-        style={[styles.scanToast, { transform: [{ translateY: toastAnim }] }]}
+        style={[styles.scanToast, { transform: [{ translateY: toastAnim }], backgroundColor: toastColor }]}
         pointerEvents="none"
       >
         {toastBasket != null && (
