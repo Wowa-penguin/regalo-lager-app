@@ -1,6 +1,9 @@
+import { createMissingProduct } from "@/api/missingProduct";
+import useStore from "@/store/useStore";
 import { OrderLine } from "@/types/order";
 import { useEffect, useState } from "react";
 import {
+  Alert,
   Modal,
   Pressable,
   StyleSheet,
@@ -25,11 +28,23 @@ export default function ManualEntryModal({
 }: Props) {
   const [count, setCount] = useState(0);
 
+  const user = useStore((s) => s.user);
+
   useEffect(() => {
     if (entry) setCount(entry.initialCount);
   }, [entry?.line.id]);
 
   const line = entry?.line;
+
+  const handleMissingProduct = async () => {
+    if (!entry) return;
+    try {
+      await createMissingProduct(user.username, entry.line.item_code);
+    } catch {
+      Alert.alert("Villa", "Gat ekki skráð vöruna sem vantar. Reyndu aftur.");
+    }
+    onMissing(count);
+  };
 
   return (
     <Modal
@@ -50,7 +65,10 @@ export default function ManualEntryModal({
 
           <View style={styles.counterRow}>
             <Pressable
-              style={[styles.counterBtn, count <= 0 && styles.counterBtnDisabled]}
+              style={[
+                styles.counterBtn,
+                count <= 0 && styles.counterBtnDisabled,
+              ]}
               onPress={() => setCount((c) => Math.max(0, c - 1))}
               disabled={count <= 0}
             >
@@ -78,7 +96,9 @@ export default function ManualEntryModal({
                 styles.counterBtn,
                 count >= (line?.quantity ?? 0) && styles.counterBtnDisabled,
               ]}
-              onPress={() => setCount((c) => Math.min(line?.quantity ?? 0, c + 1))}
+              onPress={() =>
+                setCount((c) => Math.min(line?.quantity ?? 0, c + 1))
+              }
               disabled={count >= (line?.quantity ?? 0)}
             >
               <Text style={styles.counterBtnText}>+</Text>
@@ -89,7 +109,10 @@ export default function ManualEntryModal({
             <Text style={styles.doneButtonText}>Búið</Text>
           </Pressable>
 
-          <Pressable style={styles.missingButton} onPress={() => onMissing(count)}>
+          <Pressable
+            style={styles.missingButton}
+            onPress={handleMissingProduct}
+          >
             <Text style={styles.missingButtonText}>Vantar vörur</Text>
           </Pressable>
 
