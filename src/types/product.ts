@@ -6,7 +6,8 @@ export interface Product {
 }
 
 export interface MissingProductType {
-  id: number;
-  product_id: string;
-  staff_name: string;
+  id?: number;
+  product_id?: string;
+  staff_name?: string;
+  message?: string;
 }
