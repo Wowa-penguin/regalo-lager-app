@@ -643,7 +643,11 @@ export default function OrderDetail() {
   };
 
   const createNewMissingProduct = async (itemCode: string, missing: number) => {
-    await createMissingProduct(user.username, itemCode, missing);
+    try {
+      await createMissingProduct(user.username, itemCode, missing);
+    } catch {
+      Alert.alert("Villa", "Gat ekki skráð vöruna sem vantar í kerfi.");
+    }
   };
 
   const cancelChangeBarcode = () => {
@@ -911,7 +915,7 @@ export default function OrderDetail() {
             const missing = total - newAggregate;
             setItemPicked(invoiceNumber, itemCode, newAggregate);
             setItemMissing(invoiceNumber, itemCode, missing > 0 ? missing : 0);
-            createNewMissingProduct(itemCode, missing);
+            if (missing > 0) createNewMissingProduct(itemCode, missing);
           }
           setManualEntryTarget(null);
         }}
