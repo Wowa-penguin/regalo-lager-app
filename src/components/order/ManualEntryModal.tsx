@@ -1,9 +1,6 @@
-import { createMissingProduct } from "@/api/missingProduct";
-import useStore from "@/store/useStore";
 import { OrderLine } from "@/types/order";
 import { useEffect, useState } from "react";
 import {
-  Alert,
   Modal,
   Pressable,
   StyleSheet,
@@ -28,23 +25,11 @@ export default function ManualEntryModal({
 }: Props) {
   const [count, setCount] = useState(0);
 
-  const user = useStore((s) => s.user);
-
   useEffect(() => {
     if (entry) setCount(entry.initialCount);
   }, [entry?.line.id]);
 
   const line = entry?.line;
-
-  const handleMissingProduct = async () => {
-    if (!entry) return;
-    try {
-      await createMissingProduct(user.username, entry.line.item_code);
-    } catch {
-      Alert.alert("Villa", "Gat ekki skráð vöruna sem vantar. Reyndu aftur.");
-    }
-    onMissing(count);
-  };
 
   return (
     <Modal
@@ -111,7 +96,7 @@ export default function ManualEntryModal({
 
           <Pressable
             style={styles.missingButton}
-            onPress={handleMissingProduct}
+            onPress={() => onMissing(count)}
           >
             <Text style={styles.missingButtonText}>Vantar vörur</Text>
           </Pressable>

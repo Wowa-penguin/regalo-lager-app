@@ -5,11 +5,16 @@ import { getAuthHeaders } from "@/utils/auth";
 export const createMissingProduct = async (
   staffName: string,
   productId: string,
+  missing: number,
 ): Promise<MissingProductType> => {
   const res = await fetch(`${constants.apiUrl}/regalo/missing-product`, {
     headers: getAuthHeaders(),
     method: "POST",
-    body: JSON.stringify({ product_id: productId, staff_name: staffName }),
+    body: JSON.stringify({
+      product_id: productId,
+      staff_name: staffName,
+      missing: missing,
+    }),
   });
   if (!res.ok) throw new Error("Failed to create missing product");
   const json = await res.json();

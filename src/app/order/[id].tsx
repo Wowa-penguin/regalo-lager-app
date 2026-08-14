@@ -1,7 +1,22 @@
-import { BarcodeConflictError, createBarcode, updateBarcode } from "@/api/barcodes";
+import {
+  BarcodeConflictError,
+  createBarcode,
+  updateBarcode,
+} from "@/api/barcodes";
 import { deleteInvoiceNotes } from "@/api/invoiceNotes";
-import { fetchFinishedOrder, fetchOrder, finishOrder, unfinishOrder } from "@/api/orders";
-import { createParty, deleteParty, fetchParty, finishParty } from "@/api/parties";
+import { createMissingProduct } from "@/api/missingProduct";
+import {
+  fetchFinishedOrder,
+  fetchOrder,
+  finishOrder,
+  unfinishOrder,
+} from "@/api/orders";
+import {
+  createParty,
+  deleteParty,
+  fetchParty,
+  finishParty,
+} from "@/api/parties";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import AssignBarcodeModal from "@/components/order/AssignBarcodeModal";
 import ManualEntryModal from "@/components/order/ManualEntryModal";
@@ -168,7 +183,9 @@ export default function OrderDetail() {
           setPartyLines(party.owner_lines);
           setPartyJoiner(party.joiner);
         }
-      } catch { /* non-fatal */ }
+      } catch {
+        // ! non-fatal
+      }
     }, 3000);
     return () => clearInterval(interval);
   }, [partyId, partyRole, partyLines]);
@@ -182,7 +199,10 @@ export default function OrderDetail() {
       setPartyRole("owner");
       setPartyLines(null);
     } catch (e: unknown) {
-      Alert.alert("Villa", e instanceof Error ? e.message : "Gat ekki stofnað hóp");
+      Alert.alert(
+        "Villa",
+        e instanceof Error ? e.message : "Gat ekki stofnað hóp",
+      );
     } finally {
       setCreatingParty(false);
     }
@@ -511,14 +531,10 @@ export default function OrderDetail() {
     }
 
     if (baskets.length === 0) {
-      Alert.alert(
-        "Körfur vantar",
-        "Viltu klára pöntunina án körfunúmers?",
-        [
-          { text: "Hætta við", style: "cancel" },
-          { text: "Klára án körfu", onPress: doFinish },
-        ],
-      );
+      Alert.alert("Körfur vantar", "Viltu klára pöntunina án körfunúmers?", [
+        { text: "Hætta við", style: "cancel" },
+        { text: "Klára án körfu", onPress: doFinish },
+      ]);
       return;
     }
 
@@ -560,12 +576,7 @@ export default function OrderDetail() {
         line_id: l.id,
         collected_qty: attributedPicks.get(l) ?? 0,
       }));
-      await finishOrder(
-        invoiceNumber,
-        user.username,
-        baskets,
-        finishLines,
-      );
+      await finishOrder(invoiceNumber, user.username, baskets, finishLines);
       setOrder((o) => (o ? { ...o, finished: true } : o));
     } catch (e: unknown) {
       setFinishError(e instanceof Error ? e.message : "Failed to finish order");
@@ -598,10 +609,8 @@ export default function OrderDetail() {
       // Still waiting — cancel party silently
       await deleteParty(partyId).catch(() => {});
     }
-    const res = await deleteInvoiceNotes(invoiceNumber);
-    if (res.status === "deleted") {
-      router.back();
-    }
+    await deleteInvoiceNotes(invoiceNumber).catch(() => {});
+    router.back();
   };
 
   const closePendingBarcode = () => {
@@ -633,6 +642,10 @@ export default function OrderDetail() {
     );
   };
 
+  const createNewMissingProduct = async (itemCode: string, missing: number) => {
+    await createMissingProduct(user.username, itemCode, missing);
+  };
+
   const cancelChangeBarcode = () => {
     setChangeBarcodeTarget(null);
     processingRef.current = false;
@@ -655,7 +668,10 @@ export default function OrderDetail() {
         <View style={styles.headerRight}>
           {!inParty && !order?.finished && (
             <Pressable
-              style={[styles.partyButton, creatingParty && styles.partyButtonDisabled]}
+              style={[
+                styles.partyButton,
+                creatingParty && styles.partyButtonDisabled,
+              ]}
               onPress={handleCreateParty}
               disabled={creatingParty}
             >
@@ -716,7 +732,12 @@ export default function OrderDetail() {
           </View>
 
           {inParty && (
-            <View style={[styles.partyBanner, partyLines === null && styles.partyBannerWaiting]}>
+            <View
+              style={[
+                styles.partyBanner,
+                partyLines === null && styles.partyBannerWaiting,
+              ]}
+            >
               <Text style={styles.partyBannerText}>
                 {partyLines === null
                   ? "⏳ Bíð eftir félaga…"
@@ -890,6 +911,7 @@ export default function OrderDetail() {
             const missing = total - newAggregate;
             setItemPicked(invoiceNumber, itemCode, newAggregate);
             setItemMissing(invoiceNumber, itemCode, missing > 0 ? missing : 0);
+            createNewMissingProduct(itemCode, missing);
           }
           setManualEntryTarget(null);
         }}
