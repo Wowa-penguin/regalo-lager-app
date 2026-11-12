@@ -3,6 +3,7 @@ import { fetchSortConfig } from "@/api/sortConfig";
 import useStore, { loadSession } from "@/store/useStore";
 import useBarcodeStore from "@/store/useBarcodeStore";
 import useCustomSortStore from "@/store/useCustomSortStore";
+import useProductStore from "@/store/useProductStore";
 import { setAuthToken } from "@/utils/auth";
 import { Stack } from "expo-router";
 import { useEffect, useState } from "react";
@@ -24,6 +25,8 @@ export default function RootLayout() {
         setUser(session.user);
         setAuthToken(session.token);
         fetchBarcodes().then(setBarcodes).catch(() => {});
+        // Warm the shared product cache so the first order opens pre-sorted
+        useProductStore.getState().load({ silent: true });
         // Server fetch overwrites local cache in background
         fetchSortConfig().then(setAllCategoryOrder).catch(() => {});
       }

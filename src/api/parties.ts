@@ -9,6 +9,12 @@ interface FinishPartyLine {
   collected_qty: number;
 }
 
+// Surface the server's own error text (e.g. "Party is not active").
+const errorFrom = async (res: Response, fallback: string): Promise<Error> => {
+  const json = await res.json().catch(() => ({}));
+  return new Error(json.error ?? fallback);
+};
+
 // ── Parties ───────────────────────────────────────────────────────────────────
 
 export const fetchParties = async (): Promise<Party[]> => {
@@ -37,7 +43,7 @@ export const createParty = async (
     headers: getAuthHeaders(),
     body: JSON.stringify({ invoice_number: invoiceNumber, name }),
   });
-  if (!res.ok) throw new Error("Failed to create party");
+  if (!res.ok) throw await errorFrom(res, "Failed to create party");
   return res.json();
 };
 
@@ -50,13 +56,13 @@ export const joinParty = async (
     headers: getAuthHeaders(),
     body: JSON.stringify({ name }),
   });
-  if (!res.ok) throw new Error("Failed to join party");
+  if (!res.ok) throw await errorFrom(res, "Failed to join party");
   return res.json();
 };
 
 export const finishParty = async (
   partyId: number,
-  payload: { name: string; basket: number; lines: FinishPartyLine[] },
+  payload: { name: string; basket: number | null; lines: FinishPartyLine[] },
 ): Promise<FinishPartyResult> => {
   const res = await fetch(
     `${constants.apiUrl}/regalo/parties/${partyId}/finish`,
@@ -66,13 +72,19 @@ export const finishParty = async (
       body: JSON.stringify(payload),
     },
   );
-  if (!res.ok) throw new Error("Failed to finish party");
+  if (!res.ok) throw await errorFrom(res, "Failed to finish party");
   return res.json();
 };
 
-export const deleteParty = async (partyId: number): Promise<void> => {
-  await fetch(`${constants.apiUrl}/regalo/parties/${partyId}`, {
+export const deleteParty = async (
+  partyId: number,
+  name: string,
+): Promise<void> => {
+  // Server requires the owner's name to authorise the cancel.
+  const res = await fetch(`${constants.apiUrl}/regalo/parties/${partyId}`, {
     method: "DELETE",
     headers: getAuthHeaders(),
+    body: JSON.stringify({ name }),
   });
+  if (!res.ok) throw await errorFrom(res, "Failed to cancel party");
 };

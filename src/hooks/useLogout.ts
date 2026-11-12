@@ -1,4 +1,5 @@
 import { fetchLogout } from "@/api/auth";
+import useProductStore from "@/store/useProductStore";
 import useStore, { clearSession } from "@/store/useStore";
 import { setAuthToken } from "@/utils/auth";
 import { Alert } from "react-native";
@@ -19,6 +20,7 @@ export function useLogout() {
     }
     setAuthToken(null);
     await clearSession();
+    useProductStore.getState().clear();
     logout();
   };
 }

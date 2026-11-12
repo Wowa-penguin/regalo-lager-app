@@ -508,8 +508,15 @@ export default function OrderDetail() {
     if (!order) return;
 
     if (order?.finished) {
-      await unfinishOrder(order.invoice_number);
-      setOrder((o) => (o ? { ...o, finished: false } : o));
+      setFinishError("");
+      try {
+        await unfinishOrder(order.invoice_number);
+        setOrder((o) => (o ? { ...o, finished: false } : o));
+      } catch (e: unknown) {
+        setFinishError(
+          e instanceof Error ? e.message : "Gat ekki opnað pöntunina aftur",
+        );
+      }
       return;
     }
 
@@ -555,14 +562,20 @@ export default function OrderDetail() {
       }));
       await finishParty(partyId, {
         name: user.username,
-        basket: baskets[0] ?? 0,
+        // null = no basket; 0 is rejected by the server (valid range 1-9999)
+        basket: baskets[0] ?? null,
         lines: finishLines,
       });
       // Leave immediately — server holds the submitted lines until partner finishes
       await deleteInvoiceNotes(invoiceNumber).catch(() => {});
       router.back();
     } catch (e: unknown) {
-      setFinishError(e instanceof Error ? e.message : "Villa við að klára");
+      const msg = e instanceof Error ? e.message : "";
+      setFinishError(
+        msg === "Party is not active"
+          ? "Hópnum var hætt. Farðu til baka og tíndu pöntunina ein/n."
+          : msg || "Villa við að klára",
+      );
       setPartyFinishing(false);
     }
   };
@@ -597,7 +610,7 @@ export default function OrderDetail() {
             {
               text: "Já, fara",
               onPress: async () => {
-                await deleteParty(partyId).catch(() => {});
+                await deleteParty(partyId, user.username).catch(() => {});
                 await deleteInvoiceNotes(invoiceNumber).catch(() => {});
                 router.back();
               },
@@ -607,7 +620,7 @@ export default function OrderDetail() {
         return;
       }
       // Still waiting — cancel party silently
-      await deleteParty(partyId).catch(() => {});
+      await deleteParty(partyId, user.username).catch(() => {});
     }
     await deleteInvoiceNotes(invoiceNumber).catch(() => {});
     router.back();
