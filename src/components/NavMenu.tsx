@@ -8,6 +8,7 @@ const NAV_ITEMS: {
     | "/"
     | "/products"
     | "/scanned"
+    | "/product-info"
     | "/sort"
     | "/sendingar"
     | "/multi-pick/setup";
@@ -15,6 +16,7 @@ const NAV_ITEMS: {
   { label: "Pantanir", path: "/" },
   { label: "Skrá", path: "/products" },
   { label: "Breyta", path: "/scanned" },
+  { label: "Vöruleit", path: "/product-info" },
   { label: "Röðun", path: "/sort" },
   { label: "Sendingar", path: "/sendingar" },
   { label: "Fjöltínsla", path: "/multi-pick/setup" },

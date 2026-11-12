@@ -54,6 +54,10 @@ export const CATEGORY_NAMES: Record<string, string> = {
   "20": "Lycon",
 };
 
+// Product search on the public Regalo website — used by order lines and Vöruleit.
+export const regaloSearchUrl = (itemCode: string): string =>
+  `https://regalo.is/leit?q=${encodeURIComponent(itemCode)}&page=1&pageIndex=0&pageSize=25`;
+
 export const getCategoryName = (code: string): string =>
   CATEGORY_NAMES[code] ?? code;
 

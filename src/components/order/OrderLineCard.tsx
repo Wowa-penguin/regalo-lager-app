@@ -1,3 +1,4 @@
+import { regaloSearchUrl } from "@/constants/const";
 import { OrderLine } from "@/types/order";
 import { Product } from "@/types/product";
 import * as WebBrowser from "expo-web-browser";
@@ -126,9 +127,7 @@ export default function OrderLineCard({
         )}
         <Pressable
           onPress={() =>
-            WebBrowser.openBrowserAsync(
-              `https://regalo.is/leit?q=${encodeURIComponent(line.item_code)}&page=1&pageIndex=0&pageSize=25`,
-            )
+            WebBrowser.openBrowserAsync(regaloSearchUrl(line.item_code))
           }
           hitSlop={8}
         >
